@@ -1,0 +1,51 @@
+# set verbosity
+/control/verbose 1
+/run/verbose 1
+/tracking/verbose 0
+
+# The detector configuration (HD, VD, or TS)
+/geometry/detector_configuration HD
+
+# output path
+/inputs/output_file ./output/single_muon.root
+
+# initialize run
+/run/initialize
+/random/setSeeds 0 31
+
+# limit radioactive decays
+#/grdm/nucleusLimits 1 35 1 17  # aMin aMax zMin zMax
+
+# particle type
+# e-, e+, mu-, mu+, neutron, proton, anti_proton, pi-, pi+, pi0, kaon-, kaon+,
+# gamma, opticalphoton, ...
+/gps/particle mu-
+
+# point source
+/gps/pos/type Point
+#Central position for a HD geometry
+/gps/pos/centre 115 475 150 cm
+
+#Central position for a VD geometry
+#/gps/pos/centre 1000 650 325 cm
+
+# angular distribution
+/gps/ang/type iso
+/gps/ang/rot1 -1 0 0
+/gps/ang/rot2 0 0 1
+/gps/ang/mintheta 0 deg
+/gps/ang/maxtheta 0 deg  # opening angle of cone
+
+# initial momentum in the -x direction (VD configuration)
+#/gps/ang/type iso
+#/gps/ang/rot1 0 0 -1
+#/gps/ang/rot2 0 1 0
+#/gps/ang/mintheta 0 deg
+#/gps/ang/maxtheta 0 deg  # opening angle of cone
+
+# energy distribution
+/gps/ene/type Mono
+/gps/ene/mono 2 MeV
+
+# run
+/run/beamOn 100

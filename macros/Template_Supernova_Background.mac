@@ -1,0 +1,34 @@
+# set verbosity
+/control/verbose 1
+/run/verbose 1
+/tracking/verbose 0
+
+# configure supernova
+/Inputs/Particle_Type SUPERNOVA
+
+# output path
+/Inputs/root_output ../output/SUPERNOVA_BACKGROUND.root
+
+# initialize run
+/run/initialize
+/random/setSeeds 0 31
+
+
+# Supernova configs
+/Supernova/Event_Window 10 s
+/Supernova/Event_Cutoff 10 s
+
+/Supernova/N_Ar39_Decays 707000
+/Supernova/N_Ar42_Decays 64
+/Supernova/N_Bi214_Decays 7000
+/Supernova/N_Co60_Decays 41
+/Supernova/N_K40_Decays 12642
+/Supernova/N_K42_Decays 64
+/Supernova/N_Kr85_Decays 80500
+/Supernova/N_Pb214_Decays 7000
+/Supernova/N_Po210_Decays 5
+/Supernova/N_Rn222_Decays 27740
+
+# run
+/run/beamOn 100
+
