@@ -90,11 +90,29 @@ For this workflow, use:
 python qpix_ed.py path/to/file.root --3d
 ```
 
-or, for a combined view of all events:
+The stock qpixar script displays one event at a time. If the detector axes are too large by a factor of ten, check the Q_PIX_GEANT4 detector metadata patch described below before interpreting the event shape.
 
-```sh
-python qpix_ed.py path/to/file.root --3d --all-events
+If recent Matplotlib versions complain about `get_shared_x_axes().join(...)`, keep the original qpixar behavior by adding a small compatibility helper and replacing those calls with `join_shared_axis(ax0, ax1, 'x')` or `join_shared_axis(ax0, ax1, 'y')`. Do not replace `join(...)` with `joined(...)`, because `joined(...)` only checks whether axes are linked.
+
+### Detector Metadata Units Patch
+
+Before producing files for qpixar, make sure Q_PIX_GEANT4 writes detector dimensions in centimeters. Geant4 stores `2.3 m` internally as `2300 mm`; qpixar labels the detector metadata as centimeters. If the metadata is written without converting units, the HD detector appears as `2300 x 6000 x 3600 cm` instead of `230 x 600 x 360 cm`.
+
+In `/Users/fb_local/Programs/Q_PIX_GEANT4/src/AnalysisManager.cpp`, include:
+
+```cpp
+#include "CLHEP/Units/SystemOfUnits.h"
 ```
+
+and write metadata dimensions as:
+
+```cpp
+detector_length_x_ = ConfigManager::GetDetectorWidth()  / CLHEP::cm;
+detector_length_y_ = ConfigManager::GetDetectorHeight() / CLHEP::cm;
+detector_length_z_ = ConfigManager::GetDetectorLength() / CLHEP::cm;
+```
+
+Then rebuild Q_PIX_GEANT4 and regenerate the Geant4 and RTD ROOT files.
 
 ## Files Created
 
@@ -482,13 +500,7 @@ cd /Users/fb_local/Programs/qpixar/examples
 python qpix_ed.py /Users/fb_local/Programs/qpixrtd/single_kaon_RTD.root --3d
 ```
 
-For one combined view of all events:
-
-```sh
-python qpix_ed.py /Users/fb_local/Programs/qpixrtd/single_kaon_RTD.root --3d --all-events
-```
-
-The local `--all-events` mode was added to avoid opening one popup per event. It accumulates all event content and displays it in a single window.
+The stock qpixar script advances event-by-event; closing the figure opens the next event. For the HD detector, the corrected axes should be approximately `x = 0-230 cm`, `y = 0-600 cm`, and `z = 0-360 cm`.
 
 ## What To Inspect
 
@@ -635,10 +647,3 @@ source /Users/fb_local/Programs/qpix-root630-pythia6-env.sh
 cd /Users/fb_local/Programs/qpixar/examples
 python qpix_ed.py /Users/fb_local/Programs/qpixrtd/single_kaon_RTD.root --3d
 ```
-
-Visualize all events in one display:
-
-```sh
-python qpix_ed.py /Users/fb_local/Programs/qpixrtd/single_kaon_RTD.root --3d --all-events
-```
-

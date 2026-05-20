@@ -15,6 +15,7 @@
 
 // Geant4 includes
 #include "G4AutoLock.hh"
+#include "CLHEP/Units/SystemOfUnits.h"
 
 // ROOT includes
 #include "TFile.h"
@@ -190,11 +191,10 @@ void AnalysisManager::EventFill(const AnalysisData& rhs)
 void AnalysisManager::FillMetadata()
 {
   G4AutoLock metaLock(&metaMutex);
-  detector_length_x_ = ConfigManager::GetDetectorWidth();
-  detector_length_y_ = ConfigManager::GetDetectorHeight();
-  detector_length_z_ = ConfigManager::GetDetectorLength();
+  detector_length_x_ = ConfigManager::GetDetectorWidth()  / CLHEP::cm;
+  detector_length_y_ = ConfigManager::GetDetectorHeight() / CLHEP::cm;
+  detector_length_z_ = ConfigManager::GetDetectorLength() / CLHEP::cm;
   detector_configuration_ = ConfigManager::GetDetectorConfiguration();
   metadata_->Fill();
 }
-
 
