@@ -1,0 +1,67 @@
+Transcript: root_to_csv.py pandas append fix
+Date: 2026-06-04
+Workspace: /Users/fb_local/Documents/G4_QPIX_analysis
+
+User request:
+- Keep the original root_to_csv.py untouched.
+- Make all changes in a new file named root_to_csv_faithedit.py.
+- Add a comment describing the change.
+- Save this transcript in G4_QPIX_analysis.
+
+Original command attempted:
+python root_to_csv.py /Users/fb_local/Programs/qpixrtd/single_kaon_RTD.root
+
+Original error:
+AttributeError: 'DataFrame' object has no attribute 'append'
+
+Cause:
+The script uses pandas DataFrame.append at two locations. DataFrame.append was removed from modern pandas versions, including the local virtual environment's pandas 3.0.3.
+
+Files inspected:
+- /Users/fb_local/Documents/G4_QPIX_analysis/root_to_csv.py
+
+Files created:
+- /Users/fb_local/Documents/G4_QPIX_analysis/root_to_csv_faithedit.py
+- /Users/fb_local/Documents/G4_QPIX_analysis/root_to_csv_faithedit_transcript.txt
+
+Change made:
+Copied root_to_csv.py to root_to_csv_faithedit.py, then replaced the two DataFrame.append calls with pandas concat calls:
+
+1. Reset rows:
+   Original:
+   reset_data = reset_data.append(reset_series, ignore_index=True)
+
+   New:
+   # Faith edit: pandas removed DataFrame.append, so concatenate the new row as a one-row DataFrame.
+   reset_data = pd.concat([reset_data, reset_series.to_frame().T], ignore_index=True)
+
+2. G4 energy deposit rows:
+   Original:
+   G4_data = G4_data.append(edep_data,ignore_index=True)
+
+   New:
+   # Faith edit: pandas removed DataFrame.append, so concatenate the new row as a one-row DataFrame.
+   G4_data = pd.concat([G4_data, edep_data.to_frame().T], ignore_index=True)
+
+Validation performed:
+1. Confirmed the original file still contains the original append calls.
+2. Confirmed the edited file contains the new "Faith edit" comments.
+3. Ran a syntax check:
+   analysis_venv/bin/python -m py_compile root_to_csv_faithedit.py
+   Result: success.
+4. Ran the patched converter:
+   analysis_venv/bin/python root_to_csv_faithedit.py /Users/fb_local/Programs/qpixrtd/single_kaon_RTD.root
+   Result: success, exit code 0.
+
+Output from successful conversion:
+- /Users/fb_local/Programs/qpixrtd/single_kaon_RTD_2026-06-04_155259
+- 200 .txt files were generated:
+  - G4_E0.txt through G4_E99.txt
+  - resets_E0.txt through resets_E99.txt
+
+How to run the fixed version:
+cd /Users/fb_local/Documents/G4_QPIX_analysis
+analysis_venv/bin/python root_to_csv_faithedit.py /Users/fb_local/Programs/qpixrtd/single_kaon_RTD.root
+
+Note:
+The patched script preserves the original script's behavior and print output. The compatibility fix is minimal. Because the script builds DataFrames row by row, it can still be slow and very verbose for large ROOT files.
