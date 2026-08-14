@@ -110,6 +110,12 @@ class MCParticle
         inline TLorentzVector InitialPosition() const { return initial_position_; }
         inline TLorentzVector InitialMomentum() const { return initial_momentum_; }
 
+        // Public getters for particle end-of-life information (FB 8-14-26)
+        inline bool        Decayed()       const { return decayed_;        }
+        inline TLorentzVector FinalPosition() const { return final_position_; }
+        inline int         DetectorXTag()  const { return detector_x_tag_; }
+        inline int         DetectorYTag()  const { return detector_y_tag_; }
+
         inline void SetTrackID(int const trackID)               { track_id_ = trackID;               }
         inline void SetParentTrackID(int const parentTrackID)   { parent_track_id_ = parentTrackID;  }
         inline void SetPDGCode(int const pdgCode)               { pdg_code_ = pdgCode;               }
@@ -121,6 +127,24 @@ class MCParticle
 
         inline void SetInitialPosition(TLorentzVector const initialPosition) { initial_position_ = initialPosition; }
         inline void SetInitialMomentum(TLorentzVector const initialMomentum) { initial_momentum_ = initialMomentum; }
+
+        // Public setters for particle end-of-life information (FB 8-14-26)
+        inline void SetDecayed(bool const decayed) { decayed_ = decayed; }
+
+        inline void SetFinalPosition(TLorentzVector const finalPosition)
+        {
+            final_position_ = finalPosition;
+        }
+
+        inline void SetDetectorXTag(int const detectorXTag)
+        {
+            detector_x_tag_ = detectorXTag;
+        }
+
+        inline void SetDetectorYTag(int const detectorYTag)
+        {
+            detector_y_tag_ = detectorYTag;
+        }
 
     private:
 
@@ -137,6 +161,12 @@ class MCParticle
 
         TLorentzVector initial_position_;
         TLorentzVector initial_momentum_;
+
+        // Private variables for end-of-life particle information (FB 8-14-26)
+        bool decayed_ = false;
+        TLorentzVector final_position_;
+        int detector_x_tag_ = -1;
+        int detector_y_tag_ = -1;
 
         // std::vector< TrajectoryPoint > trajectory_;
         std::vector< TrajectoryHit > hits_;

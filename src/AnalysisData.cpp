@@ -95,12 +95,22 @@ void AnalysisData::EventReset()
   particle_initial_z_.clear();
   particle_initial_t_.clear();
 
+  // Adding end-of-life particle information (FB 8-14-26)
+  particle_decay_flag_.clear();
+  particle_final_x_.clear();
+  particle_final_y_.clear();
+  particle_final_z_.clear();
+  particle_final_t_.clear();
+  particle_detector_x_tag_.clear();
+  particle_detector_y_tag_.clear();
+
   particle_initial_px_.clear();
   particle_initial_py_.clear();
   particle_initial_pz_.clear();
   particle_initial_energy_.clear();
 
   hit_track_id_.clear();
+  hit_pdg_code_.clear();
   hit_start_x_.clear();
   hit_start_y_.clear();
   hit_start_z_.clear();
@@ -198,6 +208,15 @@ void AnalysisData::AddMCParticle(MCParticle const * particle)
   particle_initial_y_.push_back(particle->InitialPosition().Y());
   particle_initial_z_.push_back(particle->InitialPosition().Z());
   particle_initial_t_.push_back(particle->InitialPosition().T());
+
+  // Adding end-of-life particle information (FB 8-14-26)
+  particle_decay_flag_.push_back(particle->Decayed() ? 1 : 0);
+  particle_final_x_.push_back(particle->FinalPosition().X());
+  particle_final_y_.push_back(particle->FinalPosition().Y());
+  particle_final_z_.push_back(particle->FinalPosition().Z());
+  particle_final_t_.push_back(particle->FinalPosition().T());
+  particle_detector_x_tag_.push_back(particle->DetectorXTag());
+  particle_detector_y_tag_.push_back(particle->DetectorYTag());
 
   particle_initial_px_.push_back(particle->InitialMomentum().X());
   particle_initial_py_.push_back(particle->InitialMomentum().Y());

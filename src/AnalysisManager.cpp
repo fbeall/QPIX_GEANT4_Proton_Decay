@@ -145,6 +145,15 @@ void AnalysisManager::Book(const std::string& file_path)
     event_tree_->Branch("particle_initial_pz",      &event.particle_initial_pz_);
     event_tree_->Branch("particle_initial_energy",  &event.particle_initial_energy_);
 
+    // Adding end-of-life particle information (FB 8-14-26)
+    event_tree_->Branch("particle_decay_flag",     &event.particle_decay_flag_);
+    event_tree_->Branch("particle_final_x",        &event.particle_final_x_);
+    event_tree_->Branch("particle_final_y",        &event.particle_final_y_);
+    event_tree_->Branch("particle_final_z",        &event.particle_final_z_);
+    event_tree_->Branch("particle_final_t",        &event.particle_final_t_);
+    event_tree_->Branch("particle_detector_x_tag", &event.particle_detector_x_tag_);
+    event_tree_->Branch("particle_detector_y_tag", &event.particle_detector_y_tag_);
+
     event_tree_->Branch("particle_number_daughters",  &event.particle_number_daughters_);
     event_tree_->Branch("particle_daughter_track_id", &event.particle_daughter_track_ids_);
 

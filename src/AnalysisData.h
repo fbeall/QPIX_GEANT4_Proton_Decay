@@ -79,6 +79,15 @@ class AnalysisData {
     std::vector< double > particle_initial_z_;
     std::vector< double > particle_initial_t_;
 
+    // Adding end-of-lifetime particle information (FB 8-14-26)
+    std::vector<int> particle_decay_flag_;
+    std::vector<double> particle_final_x_;
+    std::vector<double> particle_final_y_;
+    std::vector<double> particle_final_z_;
+    std::vector<double> particle_final_t_;
+    std::vector<int> particle_detector_x_tag_;
+    std::vector<int> particle_detector_y_tag_;
+
     std::vector< double > particle_initial_px_;
     std::vector< double > particle_initial_py_;
     std::vector< double > particle_initial_pz_;
@@ -97,6 +106,7 @@ class AnalysisData {
     std::vector< double > hit_length_;
     std::vector< double > hit_energy_deposit_;
     std::vector< int >    hit_process_key_;
+
 
     // number of generator particles
     int generator_initial_number_particles_;

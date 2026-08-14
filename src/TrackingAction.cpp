@@ -19,6 +19,12 @@
 #include <iostream>
 #include <fstream>
 
+#include "G4VProcess.hh"
+
+#include "ConfigManager.h"
+
+#include <cmath>
+
 TrackingAction::TrackingAction()
 {}
 
@@ -81,11 +87,67 @@ void TrackingAction::PostUserTrackingAction(const G4Track* track)
     // get MC particle
     MCParticle * particle = mc_truth_manager->GetMCParticle(track->GetTrackID());
 
-    // set process
-    if (track->GetStep()->GetPostStepPoint()->GetProcessDefinedStep() != 0) {
-      particle->SetProcess(track->GetStep()->GetPostStepPoint()->GetProcessDefinedStep()->GetProcessName());
-    } else {
-      particle->SetProcess("User Limit");
+    // Storing end-of-life particle info when the track ends (FB 8-14-26)
+    const G4Step* lastStep = track->GetStep();
+
+    if (lastStep == nullptr || lastStep->GetPostStepPoint() == nullptr) // prevents crash if G4 pops out a track with no final step
+    {
+        particle->SetProcess("NoProcess");
+        particle->SetDecayed(false);
+        particle->SetDetectorXTag(-1);
+        particle->SetDetectorYTag(-1);
+        return;
     }
+
+    const G4StepPoint* post = lastStep->GetPostStepPoint();
+    const G4VProcess* process = post->GetProcessDefinedStep();
+
+    G4String processName = process ? process->GetProcessName() : "User Limit";
+
+    bool decayed =
+        processName == "Decay" ||
+        processName == "RadioactiveDecay" ||
+        processName == "RadioactiveDecayBase";
+
+    particle->SetFinalPosition(
+        TLorentzVector(
+            post->GetPosition().x() / CLHEP::cm,
+            post->GetPosition().y() / CLHEP::cm,
+            post->GetPosition().z() / CLHEP::cm,
+            post->GetGlobalTime()   / CLHEP::ns
+        )
+    );
+
+    // Storing pixel/detector tags
+    //particle->SetFinalTime(...);
+    particle->SetProcess(processName);
+    particle->SetDecayed(decayed);
+
+    double const final_x_cm = post->GetPosition().x() / CLHEP::cm;
+    double const final_y_cm = post->GetPosition().y() / CLHEP::cm;
+
+    double const pixel_size_cm = 0.4;  // Must match Q_PIX_RTD pixel_size metadata, in cm.
+
+    int detector_x_tag = -1;
+    int detector_y_tag = -1;
+
+    if (final_x_cm >= 0. &&
+        final_x_cm < ConfigManager::GetDetectorWidth() / CLHEP::cm &&
+        final_y_cm >= 0. &&
+        final_y_cm < ConfigManager::GetDetectorHeight() / CLHEP::cm)
+    {
+        detector_x_tag = static_cast<int>(std::floor(final_x_cm / pixel_size_cm));
+        detector_y_tag = static_cast<int>(std::floor(final_y_cm / pixel_size_cm));
+    }
+
+    particle->SetDetectorXTag(detector_x_tag);
+    particle->SetDetectorYTag(detector_y_tag);
+
+    // set process
+    // if (track->GetStep()->GetPostStepPoint()->GetProcessDefinedStep() != 0) {
+    //   particle->SetProcess(track->GetStep()->GetPostStepPoint()->GetProcessDefinedStep()->GetProcessName());
+    // } else {
+    //   particle->SetProcess("User Limit");
+    // }
 }
 
