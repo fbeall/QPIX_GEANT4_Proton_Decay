@@ -19,6 +19,8 @@ from datetime import datetime
 parser = argparse.ArgumentParser(description="pixel event display")
 parser.add_argument("file", type=str, default=None,
                     help="path to ROOT file")
+parser.add_argument("--output-dir", type=str, default=None,
+                    help="directory where output files will be written")
 #parser.add_argument("event", type=int, default=None,
 #					help="number of event for processing")
 
@@ -30,8 +32,13 @@ base = os.path.basename(file_path)
 file_name = os.path.splitext(base)[0]
 now = datetime.now()
 dt_string = now.strftime("%Y-%m-%d_%H%M%S")
-newdirs = str('%s/%s_%s'%(pwd,file_name,dt_string))
-os.makedirs(newdirs)
+
+# adding option to specify saved directory (FB 8-17-26)
+if args.output_dir is None:
+	newdirs = str('%s/%s_%s'%(pwd,file_name,dt_string))
+else:
+	newdirs = str(args.output_dir)
+os.makedirs(newdirs, exist_ok=True)
 
 reset_data = pd.DataFrame(columns=['event','pixel_x','pixel_y','reset_time','TSLR','nMCParticles','MC_TrackIDs','MC_Weights'])
 G4_data = pd.DataFrame(columns=['event','xi','xf','yi','yf','zi','zf','ti','tf','E','ParticleID','PDG'])
