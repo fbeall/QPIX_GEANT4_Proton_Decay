@@ -35,6 +35,15 @@ os.makedirs(newdirs)
 
 reset_data = pd.DataFrame(columns=['event','pixel_x','pixel_y','reset_time','TSLR','nMCParticles','MC_TrackIDs','MC_Weights'])
 G4_data = pd.DataFrame(columns=['event','xi','xf','yi','yf','zi','zf','ti','tf','E','ParticleID','PDG'])
+# Extract per-particle end-of-life information added in Q_PIX_GEANT4/src. (FB 8/17/26)
+particle_data = pd.DataFrame(columns=[
+	'event', 'particle_track_id', 'particle_parent_track_id', 'particle_pdg_code',
+	'particle_mass', 'particle_charge', 'particle_process_key',
+	'particle_initial_energy',
+	'particle_initial_x', 'particle_initial_y', 'particle_initial_z', 'particle_initial_t',
+	'particle_final_x', 'particle_final_y', 'particle_final_z', 'particle_final_t',
+	'particle_decay_flag', 'particle_detector_x_tag', 'particle_detector_y_tag',
+])
 
 with uproot.open(file_path) as f:
 
@@ -76,7 +85,12 @@ with uproot.open(file_path) as f:
 
 		# MC particle information [Q_PIX_GEANT4]
 		'particle_track_id', 'particle_pdg_code',
-		'particle_mass', 'particle_initial_energy',
+		'particle_parent_track_id', 'particle_mass', 'particle_charge',
+		'particle_process_key', 'particle_initial_energy',
+		'particle_initial_x', 'particle_initial_y', 'particle_initial_z', 'particle_initial_t',
+		'particle_decay_flag',
+		'particle_final_x', 'particle_final_y', 'particle_final_z', 'particle_final_t',
+		'particle_detector_x_tag', 'particle_detector_y_tag',
 
 		# MC hit information [Q_PIX_GEANT4]
 		'hit_energy_deposit', 'hit_track_id', 'hit_process_key',
@@ -100,7 +114,24 @@ with uproot.open(file_path) as f:
 
 		# get MC particle arrays
 		particle_track_id_array = arrays['particle_track_id']
+		particle_parent_track_id_array = arrays['particle_parent_track_id']
 		particle_pdg_code_array = arrays['particle_pdg_code']
+		particle_mass_array = arrays['particle_mass']
+		particle_charge_array = arrays['particle_charge']
+		particle_process_key_array = arrays['particle_process_key']
+		particle_initial_energy_array = arrays['particle_initial_energy']
+		particle_initial_x_array = arrays['particle_initial_x']
+		particle_initial_y_array = arrays['particle_initial_y']
+		particle_initial_z_array = arrays['particle_initial_z']
+		particle_initial_t_array = arrays['particle_initial_t']
+		# End-of-life particle arrays added in Q_PIX_GEANT4/src. (FB 8/17/26)
+		particle_decay_flag_array = arrays['particle_decay_flag']
+		particle_final_x_array = arrays['particle_final_x']
+		particle_final_y_array = arrays['particle_final_y']
+		particle_final_z_array = arrays['particle_final_z']
+		particle_final_t_array = arrays['particle_final_t']
+		particle_detector_x_tag_array = arrays['particle_detector_x_tag']
+		particle_detector_y_tag_array = arrays['particle_detector_y_tag']
 
 		# get MC hit arrays
 		hit_track_id_array = arrays['hit_track_id']
@@ -135,6 +166,15 @@ with uproot.open(file_path) as f:
 
 			reset_data = pd.DataFrame(columns=['event','pixel_x','pixel_y','reset_time','TSLR','nMCParticles','MC_TrackIDs','MC_Weights'])
 			G4_data = pd.DataFrame(columns=['event','xi','xf','yi','yf','zi','zf','ti','tf','E','ParticleID','PDG'])
+			# One row per Geant4 particle, including final position, decay flag, and detector tags. (FB 8/17/26)
+			particle_data = pd.DataFrame(columns=[
+				'event', 'particle_track_id', 'particle_parent_track_id', 'particle_pdg_code',
+				'particle_mass', 'particle_charge', 'particle_process_key',
+				'particle_initial_energy',
+				'particle_initial_x', 'particle_initial_y', 'particle_initial_z', 'particle_initial_t',
+				'particle_final_x', 'particle_final_y', 'particle_final_z', 'particle_final_t',
+				'particle_decay_flag', 'particle_detector_x_tag', 'particle_detector_y_tag',
+			])
 			
 			# get event number
 			event = event_array[idx]
@@ -152,6 +192,50 @@ with uproot.open(file_path) as f:
 			number_pixels = len(pixel_x)
 
 			print('Event:', event)
+
+			# Build the per-particle table before the hit table so end-of-life info is not duplicated per hit. (FB 8/17/26)
+			particle_track_id = particle_track_id_array[idx]
+			particle_parent_track_id = particle_parent_track_id_array[idx]
+			particle_pdg_code = particle_pdg_code_array[idx]
+			particle_mass = particle_mass_array[idx]
+			particle_charge = particle_charge_array[idx]
+			particle_process_key = particle_process_key_array[idx]
+			particle_initial_energy = particle_initial_energy_array[idx]
+			particle_initial_x = particle_initial_x_array[idx]
+			particle_initial_y = particle_initial_y_array[idx]
+			particle_initial_z = particle_initial_z_array[idx]
+			particle_initial_t = particle_initial_t_array[idx]
+			particle_decay_flag = particle_decay_flag_array[idx]
+			particle_final_x = particle_final_x_array[idx]
+			particle_final_y = particle_final_y_array[idx]
+			particle_final_z = particle_final_z_array[idx]
+			particle_final_t = particle_final_t_array[idx]
+			particle_detector_x_tag = particle_detector_x_tag_array[idx]
+			particle_detector_y_tag = particle_detector_y_tag_array[idx]
+
+			for particle in range(len(particle_track_id)):
+				particle_series = pd.Series([
+					event,
+					particle_track_id[particle],
+					particle_parent_track_id[particle],
+					particle_pdg_code[particle],
+					particle_mass[particle],
+					particle_charge[particle],
+					particle_process_key[particle],
+					particle_initial_energy[particle],
+					particle_initial_x[particle],
+					particle_initial_y[particle],
+					particle_initial_z[particle],
+					particle_initial_t[particle],
+					particle_final_x[particle],
+					particle_final_y[particle],
+					particle_final_z[particle],
+					particle_final_t[particle],
+					particle_decay_flag[particle],
+					particle_detector_x_tag[particle],
+					particle_detector_y_tag[particle],
+				], index=particle_data.columns)
+				particle_data = pd.concat([particle_data, particle_series.to_frame().T], ignore_index=True)
 
 			# loop over pixels
 			for px in range(number_pixels):
@@ -261,5 +345,7 @@ with uproot.open(file_path) as f:
 			# Compile event data into Resets and G4 files
 			out_file1 = str('%s/resets_E%d.txt'%(newdirs,idx))
 			out_file2 = str('%s/G4_E%d.txt'%(newdirs,idx))
+			out_file3 = str('%s/particles_E%d.txt'%(newdirs,idx))
 			reset_data.to_csv(out_file1)
 			G4_data.to_csv(out_file2)
+			particle_data.to_csv(out_file3)
