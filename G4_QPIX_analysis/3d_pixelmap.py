@@ -36,8 +36,10 @@ def electron_sum(value):
     return float(sum(weights))
 
 
-def output_dir_for(input_path):
-    return SCRIPT_DIR / f"{input_path.parent.name}_pixelmap"
+def output_dir_for(input_path, base_dir=None):
+    if base_dir is None:
+        base_dir = SCRIPT_DIR
+    return base_dir / f"{input_path.parent.name}_pixelmap"
 
 
 def add_electron_column(df):
@@ -94,7 +96,7 @@ def render_pixelmap(df, png_path, title, colorbar_label):
     return len(pixel_charge), float(pixel_charge["electrons"].sum())
 
 
-def make_pixelmaps(txt_path, plot_total=False):
+def make_pixelmaps(txt_path, output_dir=None, plot_total=False):
     df = pd.read_csv(txt_path)
 
     required_columns = {"event", "pixel_x", "pixel_y"}
@@ -105,8 +107,11 @@ def make_pixelmaps(txt_path, plot_total=False):
         )
 
     colorbar_label = add_electron_column(df)
-    output_dir = output_dir_for(txt_path)
-    output_dir.mkdir(exist_ok=True)
+    if output_dir is None:
+        output_dir = output_dir_for(txt_path)
+    else:
+        output_dir = output_dir_for(txt_path, output_dir.expanduser().resolve())
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     results = []
 
@@ -148,13 +153,26 @@ def main():
         action="store_true",
         help="Plot one total map across all events instead of one map per event.",
     )
+    parser.add_argument(
+        "-o",
+        "--output-dir",
+        type=Path,
+        help=(
+            "Parent directory for generated PNG pixel maps. A run-specific "
+            "<input-folder>_pixelmap directory will be created inside it."
+        ),
+    )
     args = parser.parse_args()
 
     txt_path = args.txt_file.expanduser().resolve()
     if not txt_path.exists():
         raise FileNotFoundError(f"Input file does not exist: {txt_path}")
 
-    output_dir, results = make_pixelmaps(txt_path, plot_total=args.total)
+    output_dir, results = make_pixelmaps(
+        txt_path,
+        output_dir=args.output_dir,
+        plot_total=args.total,
+    )
     print(f"Saved pixel maps in: {output_dir}")
     print(f"Maps generated: {len(results)}")
     for event, png_path, n_pixels, total_electrons in results:
