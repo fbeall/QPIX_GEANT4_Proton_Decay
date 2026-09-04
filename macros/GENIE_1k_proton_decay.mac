@@ -1,0 +1,33 @@
+# set verbosity
+/control/verbose 1
+/run/verbose 1
+/tracking/verbose 1
+
+# Detector geometry
+/geometry/detector_configuration HD
+
+# configure
+/inputs/input_file /Users/fb_local/Programs/Q_PIX_GEANT4/genie_events/proton_decay_argon_1k_events.gtrac.root # generated 1k GENIE proton decay event (K+ nubar channel 19)(FB 8/19/26)
+/inputs/particle_type Beam                  # choose from Beam, Atmospheric, Marley, Supernova
+/inputs/generator GENIE                     # choose from GENIE or MARLEY (entering NONE or removing this command will signal for GPS) 
+/inputs/genie_format gRooTracker            # only option currently available for GENIE
+/inputs/override_vertex_position false      # do not override vertex position
+/inputs/vertex_x 1.15 m                     # vertex x component - central
+/inputs/vertex_y 3.00 m                     # vertex y component - central 
+/inputs/vertex_z 1.8 m                      # vertex z component - central
+/inputs/momentum_direction 0 1 0            # specifies the initial momentum of particles in detector frame
+
+# output path
+/inputs/output_file /Users/fb_local/Programs/Q_PIX_GEANT4/g4_output/proton_decay_argon_1k_events.root
+
+# initialize run
+/run/numberOfThreads 1                     # changed to 1 because I got a pointer error (FB 8/19/2026)
+/run/printProgress 1
+/run/initialize
+/random/setSeeds 0 31
+
+# limit radioactive decays 
+#/process/had/rdm/nucleusLimits 1 35 1 17  # aMin aMax zMin zMax
+
+# run
+/run/beamOn 1000

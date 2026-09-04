@@ -102,6 +102,10 @@ void TrackingAction::PostUserTrackingAction(const G4Track* track)
     const G4StepPoint* post = lastStep->GetPostStepPoint();
     const G4VProcess* process = post->GetProcessDefinedStep();
 
+    // Recording kaon's energy info for better tracking of end-of-life state (FB 9-3-26)
+    particle->SetFinalKineticEnergy(post->GetKineticEnergy() / CLHEP::MeV);
+    particle->SetFinalMomentum(post->GetMomentum().mag() / CLHEP::MeV);
+
     G4String processName = process ? process->GetProcessName() : "User Limit";
 
     bool decayed =
@@ -150,4 +154,3 @@ void TrackingAction::PostUserTrackingAction(const G4Track* track)
     //   particle->SetProcess("User Limit");
     // }
 }
-

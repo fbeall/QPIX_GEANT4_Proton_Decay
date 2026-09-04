@@ -116,6 +116,8 @@ void AnalysisManager::Book(const std::string& file_path)
     event_tree_->Branch("generator_final_particle_y",          &event.generator_final_particle_y_);
     event_tree_->Branch("generator_final_particle_z",          &event.generator_final_particle_z_);
     event_tree_->Branch("generator_final_particle_t",          &event.generator_final_particle_t_);
+    event_tree_->Branch("particle_final_kinetic_energy",       &event.particle_final_kinetic_energy_);        // adding 9-3-26
+    event_tree_->Branch("particle_final_momentum",             &event.particle_final_momentum_);
     event_tree_->Branch("generator_final_particle_px",         &event.generator_final_particle_px_);
     event_tree_->Branch("generator_final_particle_py",         &event.generator_final_particle_py_);
     event_tree_->Branch("generator_final_particle_pz",         &event.generator_final_particle_pz_);

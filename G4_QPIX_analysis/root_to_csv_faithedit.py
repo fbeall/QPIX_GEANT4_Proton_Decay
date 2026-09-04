@@ -49,6 +49,7 @@ particle_data = pd.DataFrame(columns=[
 	'particle_initial_energy',
 	'particle_initial_x', 'particle_initial_y', 'particle_initial_z', 'particle_initial_t',
 	'particle_final_x', 'particle_final_y', 'particle_final_z', 'particle_final_t',
+	'particle_final_kinetic_energy', 'particle_final_momentum',  # Add final Geant4 track endpoint energy/momentum columns for rest-vs-flight classification. (FB 9-3-26)
 	'particle_decay_flag', 'particle_detector_x_tag', 'particle_detector_y_tag',
 ])
 
@@ -97,6 +98,7 @@ with uproot.open(file_path) as f:
 		'particle_initial_x', 'particle_initial_y', 'particle_initial_z', 'particle_initial_t',
 		'particle_decay_flag',
 		'particle_final_x', 'particle_final_y', 'particle_final_z', 'particle_final_t',
+		'particle_final_kinetic_energy', 'particle_final_momentum',  # Read final Geant4 track endpoint energy/momentum branches for rest-vs-flight classification. (FB 9-3-26)
 		'particle_detector_x_tag', 'particle_detector_y_tag',
 
 		# MC hit information [Q_PIX_GEANT4]
@@ -137,6 +139,8 @@ with uproot.open(file_path) as f:
 		particle_final_y_array = arrays['particle_final_y']
 		particle_final_z_array = arrays['particle_final_z']
 		particle_final_t_array = arrays['particle_final_t']
+		particle_final_kinetic_energy_array = arrays['particle_final_kinetic_energy']  # Cache final kinetic energy branch for per-particle CSV output. (FB 9-3-26)
+		particle_final_momentum_array = arrays['particle_final_momentum']  # Cache final momentum magnitude branch for per-particle CSV output. (FB 9-3-26)
 		particle_detector_x_tag_array = arrays['particle_detector_x_tag']
 		particle_detector_y_tag_array = arrays['particle_detector_y_tag']
 
@@ -180,11 +184,13 @@ with uproot.open(file_path) as f:
 				'particle_initial_energy',
 				'particle_initial_x', 'particle_initial_y', 'particle_initial_z', 'particle_initial_t',
 				'particle_final_x', 'particle_final_y', 'particle_final_z', 'particle_final_t',
+				'particle_final_kinetic_energy', 'particle_final_momentum',  # Add final endpoint energy/momentum columns to each event particle table. (FB 9-3-26)
 				'particle_decay_flag', 'particle_detector_x_tag', 'particle_detector_y_tag',
 			])
 			
 			# get event number
 			event = event_array[idx]
+			event_id = int(event)
 
 			# get pixel information for event
 			pixel_x = pixel_x_array[idx]
@@ -217,6 +223,8 @@ with uproot.open(file_path) as f:
 			particle_final_y = particle_final_y_array[idx]
 			particle_final_z = particle_final_z_array[idx]
 			particle_final_t = particle_final_t_array[idx]
+			particle_final_kinetic_energy = particle_final_kinetic_energy_array[idx]  # Extract this event's final kinetic energy values. (FB 9-3-26)
+			particle_final_momentum = particle_final_momentum_array[idx]  # Extract this event's final momentum magnitude values. (FB 9-3-26)
 			particle_detector_x_tag = particle_detector_x_tag_array[idx]
 			particle_detector_y_tag = particle_detector_y_tag_array[idx]
 
@@ -238,6 +246,8 @@ with uproot.open(file_path) as f:
 					particle_final_y[particle],
 					particle_final_z[particle],
 					particle_final_t[particle],
+					particle_final_kinetic_energy[particle],  # Write final kinetic energy for this particle row. (FB 9-3-26)
+					particle_final_momentum[particle],  # Write final momentum magnitude for this particle row. (FB 9-3-26)
 					particle_decay_flag[particle],
 					particle_detector_x_tag[particle],
 					particle_detector_y_tag[particle],
@@ -284,7 +294,7 @@ with uproot.open(file_path) as f:
 					#print('      MC particle track IDs:', mc_track_ids)
 					#print('      MC weights:', mc_weights)
 
-					reset_series = pd.Series([idx,pixel_x[px],pixel_y[px],reset,tslr,number_mc_particles,mc_track_ids,mc_weights],index=reset_data.columns)
+					reset_series = pd.Series([event_id,pixel_x[px],pixel_y[px],reset,tslr,number_mc_particles,mc_track_ids,mc_weights],index=reset_data.columns)
 					# Faith edit: pandas removed DataFrame.append, so concatenate the new row as a one-row DataFrame.
 					reset_data = pd.concat([reset_data, reset_series.to_frame().T], ignore_index=True)
 
@@ -350,9 +360,9 @@ with uproot.open(file_path) as f:
 			# do things with pixels here
 
 			# Compile event data into Resets and G4 files
-			out_file1 = str('%s/resets_E%d.txt'%(newdirs,idx))
-			out_file2 = str('%s/G4_E%d.txt'%(newdirs,idx))
-			out_file3 = str('%s/particles_E%d.txt'%(newdirs,idx))
+			out_file1 = str('%s/resets_E%d.txt'%(newdirs,event_id))
+			out_file2 = str('%s/G4_E%d.txt'%(newdirs,event_id))
+			out_file3 = str('%s/particles_E%d.txt'%(newdirs,event_id))
 			reset_data.to_csv(out_file1)
 			G4_data.to_csv(out_file2)
 			particle_data.to_csv(out_file3)

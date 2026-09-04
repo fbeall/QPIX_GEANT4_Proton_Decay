@@ -146,6 +146,22 @@ class MCParticle
             detector_y_tag_ = detectorYTag;
         }
 
+        // added 9-3-26 FB
+        inline void SetFinalKineticEnergy(double const finalKineticEnergy)
+        {
+            final_kinetic_energy_ = finalKineticEnergy;
+        }
+
+        inline void SetFinalMomentum(double const finalMomentum)
+        {
+            final_momentum_ = finalMomentum;
+        }
+
+        // More end-of-life getters (FB 9-3-26)
+        inline double FinalKineticEnergy() const { return final_kinetic_energy_; }
+        inline double FinalMomentum()      const { return final_momentum_;       }
+
+
     private:
 
         int         track_id_;
@@ -167,7 +183,9 @@ class MCParticle
         TLorentzVector final_position_;
         int detector_x_tag_ = -1;
         int detector_y_tag_ = -1;
-
+        // added 9-3-26
+        double final_kinetic_energy_ = -1.;
+        double final_momentum_= -1.;
         // std::vector< TrajectoryPoint > trajectory_;
         std::vector< TrajectoryHit > hits_;
 

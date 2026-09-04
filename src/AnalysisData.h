@@ -151,6 +151,8 @@ class AnalysisData {
     std::vector< int >    generator_final_particle_pdg_code_;
     std::vector< double > generator_final_particle_mass_;
     std::vector< double > generator_final_particle_charge_;
+    std::vector< double > particle_final_kinetic_energy_;
+    std::vector< double > particle_final_momentum_;
 
 };
 

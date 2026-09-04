@@ -109,6 +109,9 @@ void AnalysisData::EventReset()
   particle_initial_pz_.clear();
   particle_initial_energy_.clear();
 
+  particle_final_kinetic_energy_.clear();
+  particle_final_momentum_.clear();
+
   hit_track_id_.clear();
   hit_pdg_code_.clear();
   hit_start_x_.clear();
@@ -226,6 +229,9 @@ void AnalysisData::AddMCParticle(MCParticle const * particle)
   particle_number_daughters_.push_back(particle->NumberDaughters());
   particle_daughter_track_ids_.push_back(particle->Daughters());
 
+  particle_final_kinetic_energy_.push_back(particle->FinalKineticEnergy());
+  particle_final_momentum_.push_back(particle->FinalMomentum());
+
   number_particles_ += 1;
 
   std::vector< TrajectoryHit > const hits = particle->Hits();
@@ -289,4 +295,3 @@ int AnalysisData::ProcessToKey(const G4String & process)
 
   return key;
 }
-
