@@ -17,6 +17,8 @@ import matplotlib.pyplot as plt
 
 
 DEFAULT_BIN_WIDTH_CM = 1.0
+DEFAULT_ZOOM_X_MAX_CM = 10.0
+DEFAULT_ZOOM_Y_MAX_MEV_PER_CM = 40.0
 KAON_PDG = 321
 
 
@@ -256,7 +258,14 @@ def bethe_bloch_kaon_lar(max_range_cm, n_points=2500):
     return residual_range[mask], stopping_power[mask]
 
 
-def plot_primary_kaons(binned, output_path, number_events, bin_width_cm):
+def plot_primary_kaons(
+    binned,
+    output_path,
+    number_events,
+    bin_width_cm,
+    x_max_cm=None,
+    y_max=None,
+):
     primary = binned[binned["kaon_category"] == "primary kaon"].copy()
     if primary.empty:
         raise ValueError("No primary kaon dE/dx segments were found.")
@@ -283,8 +292,8 @@ def plot_primary_kaons(binned, output_path, number_events, bin_width_cm):
         label="Bethe-Bloch K in LAr",
     )
 
-    ax.set_xlim(left=0.0, right=max_range * 1.03)
-    ax.set_ylim(bottom=0.0)
+    ax.set_xlim(left=0.0, right=(x_max_cm if x_max_cm is not None else max_range * 1.03))
+    ax.set_ylim(bottom=0.0, top=y_max)
     ax.set_xlabel("Residual range [cm]")
     ax.set_ylabel("dE/dx [MeV/cm]")
     ax.set_title(f"Primary kaon dE/dx vs residual range ({number_events} events)")
@@ -294,6 +303,8 @@ def plot_primary_kaons(binned, output_path, number_events, bin_width_cm):
         "\n".join(
             [
                 f"Bin width: {bin_width_cm:g} cm",
+                *([f"x max: {x_max_cm:g} cm"] if x_max_cm is not None else []),
+                *([f"y max: {y_max:g} MeV/cm"] if y_max is not None else []),
                 f"Primary kaons: {primary[['event', 'ParticleID']].drop_duplicates().shape[0]}",
                 f"Segments: {len(primary)}",
             ]
@@ -312,7 +323,14 @@ def plot_primary_kaons(binned, output_path, number_events, bin_width_cm):
     plt.close(fig)
 
 
-def plot_primary_and_daughter_kaons(binned, output_path, number_events, bin_width_cm):
+def plot_primary_and_daughter_kaons(
+    binned,
+    output_path,
+    number_events,
+    bin_width_cm,
+    x_max_cm=None,
+    y_max=None,
+):
     if binned.empty:
         raise ValueError("No kaon dE/dx segments were found.")
 
@@ -354,8 +372,8 @@ def plot_primary_and_daughter_kaons(binned, output_path, number_events, bin_widt
         .groupby("kaon_category")
         .size()
     )
-    ax.set_xlim(left=0.0, right=max_range * 1.03)
-    ax.set_ylim(bottom=0.0)
+    ax.set_xlim(left=0.0, right=(x_max_cm if x_max_cm is not None else max_range * 1.03))
+    ax.set_ylim(bottom=0.0, top=y_max)
     ax.set_xlabel("Residual range [cm]")
     ax.set_ylabel("dE/dx [MeV/cm]")
     ax.set_title(
@@ -367,6 +385,8 @@ def plot_primary_and_daughter_kaons(binned, output_path, number_events, bin_widt
         "\n".join(
             [
                 f"Bin width: {bin_width_cm:g} cm",
+                *([f"x max: {x_max_cm:g} cm"] if x_max_cm is not None else []),
+                *([f"y max: {y_max:g} MeV/cm"] if y_max is not None else []),
                 f"Primary tracks: {int(counts.get('primary kaon', 0))}",
                 f"Daughter tracks: {int(counts.get('daughter kaon', 0))}",
                 f"Segments: {len(binned)}",
@@ -467,11 +487,35 @@ def main():
         output_dir
         / f"primary_and_daughter_kaons_dEdx_vs_residual_range_{number_events}_events.png"
     )
+    primary_zoom_plot = (
+        output_dir
+        / f"primary_kaons_dEdx_vs_residual_range_xmax10cm_ymax40MeVcm_{number_events}_events.png"
+    )
+    primary_daughter_zoom_plot = (
+        output_dir
+        / f"primary_and_daughter_kaons_dEdx_vs_residual_range_xmax10cm_ymax40MeVcm_{number_events}_events.png"
+    )
     binned_csv = output_dir / f"primary_kaon_dEdx_binned_segments_{number_events}_events.csv"
 
     plot_primary_kaons(binned, primary_plot, number_events, args.bin_width_cm)
     plot_primary_and_daughter_kaons(
         binned, primary_daughter_plot, number_events, args.bin_width_cm
+    )
+    plot_primary_kaons(
+        binned,
+        primary_zoom_plot,
+        number_events,
+        args.bin_width_cm,
+        x_max_cm=DEFAULT_ZOOM_X_MAX_CM,
+        y_max=DEFAULT_ZOOM_Y_MAX_MEV_PER_CM,
+    )
+    plot_primary_and_daughter_kaons(
+        binned,
+        primary_daughter_zoom_plot,
+        number_events,
+        args.bin_width_cm,
+        x_max_cm=DEFAULT_ZOOM_X_MAX_CM,
+        y_max=DEFAULT_ZOOM_Y_MAX_MEV_PER_CM,
     )
     binned.to_csv(binned_csv, index=False)
     write_summary(output_dir, primary_kaons, daughter_kaons, binned)
@@ -485,6 +529,8 @@ def main():
     print(f"Binned dE/dx segments: {len(binned)}")
     print(f"Saved primary kaon plot: {primary_plot}")
     print(f"Saved primary + daughter kaon plot: {primary_daughter_plot}")
+    print(f"Saved primary kaon zoom plot: {primary_zoom_plot}")
+    print(f"Saved primary + daughter kaon zoom plot: {primary_daughter_zoom_plot}")
     print(f"Saved binned segment table: {binned_csv}")
     print(f"Saved summaries in: {output_dir}")
 
