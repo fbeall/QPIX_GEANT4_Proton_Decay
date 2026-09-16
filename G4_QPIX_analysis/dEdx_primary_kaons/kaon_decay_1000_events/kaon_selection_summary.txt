@@ -1,0 +1,10 @@
+Primary kaons in particles_output: 1000
+Daughter kaons of primary kaons in particles_output: 43
+Kaon tracks with G4 hit segments: 1043
+
+Process key reminder:
+  14 = hadElastic
+  18 = protonInelastic
+  19 = dInelastic
+  20 = Decay
+  -2 = uncategorized process
