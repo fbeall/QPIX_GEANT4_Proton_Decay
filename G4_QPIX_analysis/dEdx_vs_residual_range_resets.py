@@ -41,6 +41,13 @@ PDG_LABELS = {
     1000180400: "Ar40",
 }
 
+THEORY_PARTICLES = {
+    "K": {"mass_MeV": 493.677, "pdgs": (321, -321)},
+    "mu": {"mass_MeV": 105.658, "pdgs": (13, -13)},
+    "pi": {"mass_MeV": 139.570, "pdgs": (211, -211)},
+    "p": {"mass_MeV": 938.272, "pdgs": (2212,)},
+}
+
 
 def find_required_file(input_path, file_name):
     input_path = Path(input_path).expanduser().resolve()
@@ -425,6 +432,7 @@ def make_all_particles_plot(
     x_max_cm=None,
     y_max_mev_per_cm=None,
     log_y=True,
+    theory_lines=False,
 ):
     counts = binned["PDG"].value_counts()
     top_pdgs = list(counts.head(10).index)
@@ -444,9 +452,11 @@ def make_all_particles_plot(
         )
 
     cmap = plt.get_cmap("tab10")
+    pdg_colors = {}
     for index, pdg in enumerate(top_pdgs):
         group = binned[binned["PDG"] == pdg]
         color = "tab:purple" if abs(int(pdg)) == KAON_PDG else cmap(index % 10)
+        pdg_colors[int(pdg)] = color
         ax.scatter(
             group["residual_range_cm"],
             group["dEdx_MeV_per_cm"],
@@ -457,6 +467,34 @@ def make_all_particles_plot(
             label=f"{pdg_label(pdg)} ({len(group)})",
             rasterized=True,
         )
+
+    if theory_lines:
+        theory_max_range = x_max_cm
+        if theory_max_range is None:
+            theory_max_range = max(float(binned["residual_range_cm"].max()), 1.0)
+        fallback_colors = {
+            "K": "tab:purple",
+            "mu": "tab:red",
+            "pi": "tab:brown",
+            "p": "tab:pink",
+        }
+        for label, config in THEORY_PARTICLES.items():
+            color = fallback_colors[label]
+            for pdg in config["pdgs"]:
+                if pdg in pdg_colors:
+                    color = pdg_colors[pdg]
+                    break
+            theory_range, theory_dedx = bethe_bloch_lar(
+                config["mass_MeV"], theory_max_range
+            )
+            ax.plot(
+                theory_range,
+                theory_dedx,
+                color=color,
+                linestyle="--",
+                linewidth=1.8,
+                label=f"Bethe-Bloch {label}",
+            )
 
     if log_y:
         ax.set_yscale("log")
@@ -560,6 +598,7 @@ def main():
         x_max_cm=10.0,
         y_max_mev_per_cm=40.0,
         log_y=False,
+        theory_lines=True,
     )
     binned.to_csv(binned_csv, index=False)
     summary_path.write_text(
