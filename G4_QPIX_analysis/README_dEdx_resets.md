@@ -116,6 +116,7 @@ The script writes:
 - a primary-kaon-only reset reconstruction with the kaon Bethe-Bloch curve;
 - a primary-kaon view capped at 10 cm residual range and 40 MeV/cm;
 - an all-particle reset reconstruction, colored by the most common PDG species;
+- an all-particle view capped at 10 cm residual range and 40 MeV/cm;
 - a CSV containing every reconstructed 1 cm segment;
 - a text summary of the input and reconstruction settings.
 

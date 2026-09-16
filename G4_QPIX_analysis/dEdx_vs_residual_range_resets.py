@@ -417,7 +417,15 @@ def make_primary_kaon_plot(
     plt.close(fig)
 
 
-def make_all_particles_plot(binned, output_path, number_events, bin_width_cm):
+def make_all_particles_plot(
+    binned,
+    output_path,
+    number_events,
+    bin_width_cm,
+    x_max_cm=None,
+    y_max_mev_per_cm=None,
+    log_y=True,
+):
     counts = binned["PDG"].value_counts()
     top_pdgs = list(counts.head(10).index)
     fig, ax = plt.subplots(figsize=(10, 7))
@@ -450,8 +458,11 @@ def make_all_particles_plot(binned, output_path, number_events, bin_width_cm):
             rasterized=True,
         )
 
-    ax.set_yscale("log")
-    ax.set_xlim(left=0.0)
+    if log_y:
+        ax.set_yscale("log")
+    ax.set_xlim(left=0.0, right=x_max_cm)
+    if y_max_mev_per_cm is not None:
+        ax.set_ylim(bottom=0.0, top=y_max_mev_per_cm)
     ax.set_xlabel("Residual range [cm]")
     ax.set_ylabel("Reconstructed dE/dx [MeV/cm]")
     ax.set_title(f"All-particle reset reconstruction ({number_events} events)")
@@ -461,6 +472,12 @@ def make_all_particles_plot(binned, output_path, number_events, bin_width_cm):
         "\n".join(
             [
                 f"Bin width: {bin_width_cm:g} cm",
+                *([f"x max: {x_max_cm:g} cm"] if x_max_cm is not None else []),
+                *(
+                    [f"y max: {y_max_mev_per_cm:g} MeV/cm"]
+                    if y_max_mev_per_cm is not None
+                    else []
+                ),
                 f"Tracks: {binned[['event', 'ParticleID']].drop_duplicates().shape[0]}",
                 f"Segments: {len(binned)}",
                 f"PDG species: {binned['PDG'].nunique()}",
@@ -521,6 +538,7 @@ def main():
     primary_plot = output_dir / f"primary_kaons_resets_dEdx_vs_residual_range_{number_events}_events.png"
     primary_zoom_plot = output_dir / f"primary_kaons_resets_dEdx_vs_residual_range_xmax10cm_ymax40MeVcm_{number_events}_events.png"
     all_plot = output_dir / f"all_particles_resets_dEdx_vs_residual_range_{number_events}_events.png"
+    all_zoom_plot = output_dir / f"all_particles_resets_dEdx_vs_residual_range_xmax10cm_ymax40MeVcm_{number_events}_events.png"
     binned_csv = output_dir / f"resets_dEdx_binned_segments_{number_events}_events.csv"
     summary_path = output_dir / "reconstruction_summary.txt"
 
@@ -534,6 +552,15 @@ def main():
         y_max_mev_per_cm=40.0,
     )
     make_all_particles_plot(binned, all_plot, number_events, args.bin_width_cm)
+    make_all_particles_plot(
+        binned,
+        all_zoom_plot,
+        number_events,
+        args.bin_width_cm,
+        x_max_cm=10.0,
+        y_max_mev_per_cm=40.0,
+        log_y=False,
+    )
     binned.to_csv(binned_csv, index=False)
     summary_path.write_text(
         "\n".join(
@@ -565,6 +592,7 @@ def main():
     print(f"Saved primary-kaon plot: {primary_plot}")
     print(f"Saved primary-kaon zoom plot: {primary_zoom_plot}")
     print(f"Saved all-particle plot: {all_plot}")
+    print(f"Saved all-particle zoom plot: {all_zoom_plot}")
     print(f"Saved binned segments: {binned_csv}")
     print(f"Saved reconstruction summary: {summary_path}")
 
