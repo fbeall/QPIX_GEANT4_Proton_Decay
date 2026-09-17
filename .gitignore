@@ -73,3 +73,5 @@ Testing/
 
 # ignore qpixrtd_output files because with the amount of events im running the files are too big (9-4-26)
 qpixrtd_output/
+
+G4_QPIX_analysis/atmospheric_nu/**/*.root
