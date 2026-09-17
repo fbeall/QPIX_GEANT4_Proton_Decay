@@ -115,7 +115,8 @@ void PrimaryGeneration::GeneratePrimaries(G4Event* event)
     this->MARLEYGeneratePrimaries(event);
   }
 
-  else if (particleType_ == "beam")
+  else if (particleType_ == "beam" || particleType_ == "atmosphere" ||
+           particleType_ == "atmospheric")
   {
     this->GENIEGeneratePrimaries(event);
   } 
@@ -192,6 +193,11 @@ void PrimaryGeneration::GENIEGeneratePrimaries(G4Event* event)
   G4double vertex_x_ = ConfigManager::GetVertexX();
   G4double vertex_y_ = ConfigManager::GetVertexY();
   G4double vertex_z_ = ConfigManager::GetVertexZ();
+  if (ConfigManager::GetRandomizeVertexPosition()) {
+    vertex_x_ *= G4UniformRand();
+    vertex_y_ *= G4UniformRand();
+    vertex_z_ *= G4UniformRand();
+  }
   G4String particleType = ConfigManager::GetParticleType();
   G4ThreeVector momentumDirection_ = ConfigManager::GetMomentumDirection();
 
@@ -245,9 +251,9 @@ void PrimaryGeneration::GENIEGeneratePrimaries(G4Event* event)
     generatorParticle->SetPDGCode (genieManager->GetPDG_(np));
     generatorParticle->SetMass    (pdef->GetPDGMass());
     generatorParticle->SetCharge  (pdef->GetPDGCharge());
-    generatorParticle->SetX       (vertex3d[0]);
-    generatorParticle->SetY       (vertex3d[1]);
-    generatorParticle->SetZ       (vertex3d[2]);
+    generatorParticle->SetX       (vertex3d[0] / CLHEP::cm);
+    generatorParticle->SetY       (vertex3d[1] / CLHEP::cm);
+    generatorParticle->SetZ       (vertex3d[2] / CLHEP::cm);
     generatorParticle->SetT       (0*CLHEP::ns);
     generatorParticle->SetEnergy  (genieManager->GetE_(np));
     generatorParticle->SetPx      (genieManager->GetPx_(np));
@@ -264,16 +270,16 @@ void PrimaryGeneration::GENIEGeneratePrimaries(G4Event* event)
     ROOT::Math::SMatrix< double, 3 > I(identity_array, 9);
     ROOT::Math::SMatrix< double, 3 > R = I;
 
-    if (particleType == "beam")
+    if (particleType == "beam" && momentumDirection_.mag2() > 0.)
     {
 	  G4ThreeVector p_i(0, 0, 1);
       
       R =this->Rotation_Matrix(p_i, momentumDirection_);
-    } else if (particleType == "atmosphere" || particleType == "atmospheric")
+    } else if ((particleType == "atmosphere" || particleType == "atmospheric") && momentumDirection_.mag2() > 0.)
     {
       G4ThreeVector p_i(0, 0, 1);
       R = this->Rotation_Matrix(p_i, momentumDirection_);
-    } else
+    } else if (particleType != "beam" && particleType != "atmosphere" && particleType != "atmospheric")
     {
       G4cerr << "Need to add '/inputs/momentum_direction <G4ThreeVector>' to your macro" << G4endl;
     }

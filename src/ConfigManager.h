@@ -44,6 +44,7 @@ class ConfigManager {
     static G4bool           GetDecayAtTimeZero()            { return Instance()->decayAtTimeZero_; }
     static G4bool           GetIsotropic()                  { return Instance()->isotropic_; }
     static G4bool           GetOverrideVertexPosition()     { return Instance()->overrideVertexPosition_; }
+    static G4bool           GetRandomizeVertexPosition()    { return Instance()->randomizeVertexPosition_; }
     static G4bool           GetPrintParticleInfo()          { return Instance()->printParticleInfo_; }
     static G4String         GetInputFile()                  { return Instance()->inputFile_; }
     static G4String         GetOutputFile()                 { return Instance()->outputFile_; }
@@ -134,6 +135,7 @@ class ConfigManager {
     G4bool        decayAtTimeZero_;
     G4bool        isotropic_;
     G4bool        overrideVertexPosition_;
+    G4bool        randomizeVertexPosition_;
     G4bool        printParticleInfo_;
     G4String      inputFile_;
     G4String      outputFile_;

@@ -1,0 +1,18 @@
+/control/verbose 1
+/run/verbose 1
+/tracking/verbose 0
+/geometry/detector_configuration HD
+/inputs/input_file @INPUT@
+/inputs/particle_type Atmospheric
+/inputs/generator GENIE
+/inputs/genie_format gRooTracker
+/inputs/randomize_vertex_position true
+/inputs/vertex_x 230 cm
+/inputs/vertex_y 600 cm
+/inputs/vertex_z 360 cm
+/inputs/momentum_direction 0 0 0
+/inputs/output_file @OUTPUT@
+/run/numberOfThreads 1
+/run/initialize
+/random/setSeeds @SEED1@ @SEED2@
+/run/beamOn @EVENTS@

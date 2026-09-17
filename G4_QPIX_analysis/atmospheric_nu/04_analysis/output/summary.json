@@ -1,0 +1,46 @@
+{
+  "genie": {
+    "events": 2,
+    "flavor_counts": {
+      "12": 0,
+      "-12": 0,
+      "14": 2,
+      "-14": 0
+    },
+    "energy_GeV": [
+      0.3726060947998612,
+      1.393407740620615
+    ]
+  },
+  "geant4": {
+    "events": 2,
+    "mean_deposit_MeV": 667.5222097376834,
+    "events_with_Kplus": 0,
+    "vertices_cm": {
+      "x": [
+        28.086291618395553,
+        71.08936398952146
+      ],
+      "y": [
+        92.96351059667617,
+        210.44771666997184
+      ],
+      "z": [
+        61.14139777583712,
+        255.12309150867947
+      ]
+    }
+  },
+  "rtd": {
+    "events": 2,
+    "total_resets": 3638,
+    "mean_resets": 1819.0
+  },
+  "checks": {
+    "event_counts_match": true,
+    "flavor_accounting_ok": true,
+    "vertices_inside_HD": true,
+    "has_deposition": true,
+    "has_resets": true
+  }
+}

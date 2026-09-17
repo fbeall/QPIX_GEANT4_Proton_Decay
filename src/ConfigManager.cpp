@@ -45,7 +45,7 @@ ConfigManager* ConfigManager::Instance() {
 ConfigManager::ConfigManager()
   : eventIDOffset_(0), energyThreshold_(0),
   particleType_(""), decayAtTimeZero_(false), isotropic_(true),
-  overrideVertexPosition_(false), printParticleInfo_(false), inputFile_(""), outputFile_(""), marleyJson_(""), generator_(""),
+  overrideVertexPosition_(false), randomizeVertexPosition_(false), printParticleInfo_(false), inputFile_(""), outputFile_(""), marleyJson_(""), generator_(""),
   genieFormat_(""), multirun_(false), momentumDirection_(0,0,0), vertexX_(2.3*CLHEP::m/2), vertexY_(6.0*CLHEP::m/2), vertexZ_(3.7*CLHEP::m/2),
   nAr39Decays_(0), nAr42Decays_(0), nKr85Decays_(0), nCo60Decays_(0), nK40Decays_(0),
   nK42Decays_(0), nBi214Decays_(0), nPb214Decays_(0), nPo210Decays_(0), nRn222Decays_(0), eventCutoff_(0),
@@ -64,6 +64,7 @@ ConfigManager::ConfigManager(const ConfigManager& master)
   particleType_(master.particleType_),
   decayAtTimeZero_(master.decayAtTimeZero_), isotropic_(master.isotropic_),
   overrideVertexPosition_(master.overrideVertexPosition_),
+  randomizeVertexPosition_(master.randomizeVertexPosition_),
   printParticleInfo_(master.printParticleInfo_), inputFile_(master.inputFile_),
   outputFile_(master.outputFile_), marleyJson_(master.marleyJson_),
   generator_(master.generator_), genieFormat_(master.genieFormat_),
@@ -112,6 +113,7 @@ void ConfigManager::CreateCommands()
   msgInputs_->DeclareProperty("decay_at_time_zero", decayAtTimeZero_, "Set to true to make unstable isotopes decay at t=0.");
   msgInputs_->DeclareProperty("isotropic", isotropic_, "isotropic");
   msgInputs_->DeclareProperty("override_vertex_position", overrideVertexPosition_, "override vertex position");
+  msgInputs_->DeclareProperty("randomize_vertex_position", randomizeVertexPosition_, "uniform vertex in [0,vertex_x/y/z]");
   msgInputs_->DeclareProperty("print_particle_info", printParticleInfo_, "Extra Printing for Debugging");
   msgInputs_->DeclareProperty("input_file", inputFile_, "input ROOT file");
   msgInputs_->DeclareProperty("output_file", outputFile_, "output ROOT file");

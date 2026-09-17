@@ -1,0 +1,18 @@
+/control/verbose 1
+/run/verbose 1
+/tracking/verbose 0
+/geometry/detector_configuration HD
+/inputs/input_file /Users/fb_local/Programs/Q_PIX_GEANT4/G4_QPIX_analysis/atmospheric_nu/01_genie/output/atmospheric.2002.gtrac.root
+/inputs/particle_type Atmospheric
+/inputs/generator GENIE
+/inputs/genie_format gRooTracker
+/inputs/randomize_vertex_position true
+/inputs/vertex_x 230 cm
+/inputs/vertex_y 600 cm
+/inputs/vertex_z 360 cm
+/inputs/momentum_direction 0 0 0
+/inputs/output_file /Users/fb_local/Programs/Q_PIX_GEANT4/G4_QPIX_analysis/atmospheric_nu/02_qpix_geant4/output/atmospheric_g4.root
+/run/numberOfThreads 1
+/run/initialize
+/random/setSeeds 24780 24781
+/run/beamOn 10000
