@@ -17,6 +17,10 @@ import matplotlib.pyplot as plt
 
 
 DEFAULT_BIN_WIDTH_CM = 1.0
+DEFAULT_MIN_BIN_WIDTH_CM = 0.1
+DEFAULT_MAX_BIN_WIDTH_CM = 1.0
+DEFAULT_FRACTIONAL_BIN_WIDTH = 0.15
+DEFAULT_ADAPTIVE_START_CM = 1.0
 DEFAULT_ZOOM_X_MAX_CM = 10.0
 DEFAULT_ZOOM_Y_MAX_MEV_PER_CM = 40.0
 KAON_PDG = 321
@@ -179,13 +183,80 @@ def add_track_geometry(g4_hits):
     return hits
 
 
-def make_binned_dedx(g4_hits, bin_width_cm):
+def make_adaptive_bin_edges(
+    max_range_cm,
+    start_cm=DEFAULT_ADAPTIVE_START_CM,
+    min_width_cm=DEFAULT_MIN_BIN_WIDTH_CM,
+    max_width_cm=DEFAULT_MAX_BIN_WIDTH_CM,
+    fractional_width=DEFAULT_FRACTIONAL_BIN_WIDTH,
+):
+    if min_width_cm <= 0.0 or max_width_cm < min_width_cm:
+        raise ValueError("Adaptive bin widths must satisfy 0 < min <= max")
+    if fractional_width <= 0.0:
+        raise ValueError("fractional_width must be positive")
+
+    if start_cm < 0.0:
+        raise ValueError("start_cm must be nonnegative")
+    edges = [float(start_cm)]
+    while edges[-1] <= max_range_cm:
+        width = np.clip(
+            fractional_width * max(edges[-1], min_width_cm),
+            min_width_cm,
+            max_width_cm,
+        )
+        edges.append(edges[-1] + float(width))
+    return np.asarray(edges)
+
+
+def make_binned_dedx(
+    g4_hits,
+    bin_width_cm,
+    binning="adaptive",
+    min_bin_width_cm=DEFAULT_MIN_BIN_WIDTH_CM,
+    max_bin_width_cm=DEFAULT_MAX_BIN_WIDTH_CM,
+    fractional_bin_width=DEFAULT_FRACTIONAL_BIN_WIDTH,
+    adaptive_start_cm=DEFAULT_ADAPTIVE_START_CM,
+):
     if bin_width_cm <= 0:
         raise ValueError("bin_width_cm must be positive")
 
     hits = add_track_geometry(g4_hits)
-    hits["s_bin_cm"] = np.floor(hits["s_mid_cm"] / bin_width_cm) * bin_width_cm
-    hits["weighted_s_mid_cm"] = hits["s_mid_cm"] * hits["ds_cm"]
+    if binning == "adaptive":
+        edges = make_adaptive_bin_edges(
+            adaptive_start_cm,
+            0.0,
+            min_bin_width_cm,
+            max_bin_width_cm,
+            fractional_bin_width,
+        )
+        residual_range = hits["residual_range_step_cm"].to_numpy()
+        adaptive_mask = residual_range < adaptive_start_cm
+        bin_index = np.empty(len(hits), dtype=int)
+        adaptive_index = np.searchsorted(
+            edges, residual_range[adaptive_mask], side="right"
+        ) - 1
+        bin_index[adaptive_mask] = np.clip(adaptive_index, 0, len(edges) - 2)
+        fixed_index = np.floor(
+            hits.loc[~adaptive_mask, "s_mid_cm"].to_numpy() / bin_width_cm
+        ).astype(int)
+        bin_index[~adaptive_mask] = -(fixed_index + 1)
+        hits["range_bin_index"] = bin_index
+        hits["range_bin_low_cm"] = np.nan
+        hits["range_bin_high_cm"] = np.nan
+        hits.loc[adaptive_mask, "range_bin_low_cm"] = edges[bin_index[adaptive_mask]]
+        hits.loc[adaptive_mask, "range_bin_high_cm"] = edges[
+            bin_index[adaptive_mask] + 1
+        ]
+        hits["weighted_residual_range_cm"] = (
+            hits["residual_range_step_cm"] * hits["ds_cm"]
+        )
+        bin_columns = ["range_bin_index"]
+    elif binning == "fixed":
+        hits["s_bin_cm"] = np.floor(hits["s_mid_cm"] / bin_width_cm) * bin_width_cm
+        hits["weighted_s_mid_cm"] = hits["s_mid_cm"] * hits["ds_cm"]
+        bin_columns = ["s_bin_cm"]
+    else:
+        raise ValueError("binning must be 'adaptive' or 'fixed'")
 
     grouped = (
         hits.groupby(
@@ -198,21 +269,41 @@ def make_binned_dedx(g4_hits, bin_width_cm):
                 "particle_process_key",
                 "particle_final_kinetic_energy",
                 "particle_decay_flag",
-                "s_bin_cm",
+                *bin_columns,
             ],
             as_index=False,
         )
         .agg(
             energy_MeV=("E", "sum"),
             path_length_cm=("ds_cm", "sum"),
-            weighted_s_mid_cm=("weighted_s_mid_cm", "sum"),
+            **(
+                {"weighted_residual_range_cm": ("weighted_residual_range_cm", "sum")}
+                if binning == "adaptive"
+                else {"weighted_s_mid_cm": ("weighted_s_mid_cm", "sum")}
+            ),
+            **(
+                {
+                    "range_bin_low_cm": ("range_bin_low_cm", "first"),
+                    "range_bin_high_cm": ("range_bin_high_cm", "first"),
+                }
+                if binning == "adaptive"
+                else {}
+            ),
             track_length_cm=("track_length_cm", "first"),
             n_steps=("E", "size"),
         )
     )
     grouped = grouped[grouped["path_length_cm"] > 0.0].copy()
-    grouped["s_mid_cm"] = grouped["weighted_s_mid_cm"] / grouped["path_length_cm"]
-    grouped["residual_range_cm"] = grouped["track_length_cm"] - grouped["s_mid_cm"]
+    if binning == "adaptive":
+        grouped["residual_range_cm"] = (
+            grouped["weighted_residual_range_cm"] / grouped["path_length_cm"]
+        )
+        grouped["range_bin_width_cm"] = (
+            grouped["range_bin_high_cm"] - grouped["range_bin_low_cm"]
+        )
+    else:
+        grouped["s_mid_cm"] = grouped["weighted_s_mid_cm"] / grouped["path_length_cm"]
+        grouped["residual_range_cm"] = grouped["track_length_cm"] - grouped["s_mid_cm"]
     grouped["dEdx_MeV_per_cm"] = grouped["energy_MeV"] / grouped["path_length_cm"]
     grouped = grouped.replace([np.inf, -np.inf], np.nan)
     grouped = grouped.dropna(subset=["residual_range_cm", "dEdx_MeV_per_cm"])
@@ -262,7 +353,7 @@ def plot_primary_kaons(
     binned,
     output_path,
     number_events,
-    bin_width_cm,
+    binning_label,
     x_max_cm=None,
     y_max=None,
 ):
@@ -274,7 +365,7 @@ def plot_primary_kaons(
     theory_range, theory_dedx = bethe_bloch_kaon_lar(max_range)
 
     fig, ax = plt.subplots(figsize=(9, 6.5))
-    ax.scatter(
+    primary_scatter = ax.scatter(
         primary["residual_range_cm"],
         primary["dEdx_MeV_per_cm"],
         s=9,
@@ -286,7 +377,7 @@ def plot_primary_kaons(
     ax.plot(
         theory_range,
         theory_dedx,
-        color="black",
+        color=primary_scatter.get_facecolor()[0],
         linewidth=2.0,
         linestyle="--",
         label="Bethe-Bloch K in LAr",
@@ -302,7 +393,7 @@ def plot_primary_kaons(
         0.96,
         "\n".join(
             [
-                f"Bin width: {bin_width_cm:g} cm",
+                binning_label,
                 *([f"x max: {x_max_cm:g} cm"] if x_max_cm is not None else []),
                 *([f"y max: {y_max:g} MeV/cm"] if y_max is not None else []),
                 f"Primary kaons: {primary[['event', 'ParticleID']].drop_duplicates().shape[0]}",
@@ -327,7 +418,7 @@ def plot_primary_and_daughter_kaons(
     binned,
     output_path,
     number_events,
-    bin_width_cm,
+    binning_label,
     x_max_cm=None,
     y_max=None,
 ):
@@ -342,6 +433,7 @@ def plot_primary_and_daughter_kaons(
         "primary kaon": {"color": "tab:blue", "label": "primary K+", "s": 9, "alpha": 0.38},
         "daughter kaon": {"color": "tab:orange", "label": "daughter K+", "s": 16, "alpha": 0.7},
     }
+    primary_color = styles["primary kaon"]["color"]
     for category, style in styles.items():
         group = binned[binned["kaon_category"] == category]
         if group.empty:
@@ -360,7 +452,7 @@ def plot_primary_and_daughter_kaons(
     ax.plot(
         theory_range,
         theory_dedx,
-        color="black",
+        color=primary_color,
         linewidth=2.0,
         linestyle="--",
         label="Bethe-Bloch K in LAr",
@@ -384,7 +476,7 @@ def plot_primary_and_daughter_kaons(
         0.96,
         "\n".join(
             [
-                f"Bin width: {bin_width_cm:g} cm",
+                binning_label,
                 *([f"x max: {x_max_cm:g} cm"] if x_max_cm is not None else []),
                 *([f"y max: {y_max:g} MeV/cm"] if y_max is not None else []),
                 f"Primary tracks: {int(counts.get('primary kaon', 0))}",
@@ -454,10 +546,24 @@ def main():
         help="Generated event folder containing g4_output.txt and particles_output.txt.",
     )
     parser.add_argument(
+        "--binning",
+        choices=("adaptive", "fixed"),
+        default="adaptive",
+        help="Residual-range binning mode. Default: adaptive.",
+    )
+    parser.add_argument(
         "--bin-width-cm",
         type=float,
         default=DEFAULT_BIN_WIDTH_CM,
         help=f"Track-length bin width in cm. Default: {DEFAULT_BIN_WIDTH_CM:g}.",
+    )
+    parser.add_argument("--min-bin-width-cm", type=float, default=DEFAULT_MIN_BIN_WIDTH_CM)
+    parser.add_argument("--max-bin-width-cm", type=float, default=DEFAULT_MAX_BIN_WIDTH_CM)
+    parser.add_argument(
+        "--fractional-bin-width", type=float, default=DEFAULT_FRACTIONAL_BIN_WIDTH
+    )
+    parser.add_argument(
+        "--adaptive-start-cm", type=float, default=DEFAULT_ADAPTIVE_START_CM
     )
     args = parser.parse_args()
 
@@ -470,7 +576,23 @@ def main():
 
     primary_kaons, daughter_kaons, selected_kaons = classify_kaons(particles)
     selected_hits = select_hits_for_particles(g4_hits, selected_kaons)
-    binned = make_binned_dedx(selected_hits, args.bin_width_cm)
+    binned = make_binned_dedx(
+        selected_hits,
+        args.bin_width_cm,
+        binning=args.binning,
+        min_bin_width_cm=args.min_bin_width_cm,
+        max_bin_width_cm=args.max_bin_width_cm,
+        fractional_bin_width=args.fractional_bin_width,
+        adaptive_start_cm=args.adaptive_start_cm,
+    )
+    if args.binning == "adaptive":
+        binning_label = (
+            f"Adaptive bins below {args.adaptive_start_cm:g} cm"
+        )
+        file_suffix = "_adaptive"
+    else:
+        binning_label = f"Fixed bin width: {args.bin_width_cm:g} cm"
+        file_suffix = ""
 
     output_dir = (
         SCRIPT_DIR
@@ -481,31 +603,31 @@ def main():
 
     primary_plot = (
         output_dir
-        / f"primary_kaons_dEdx_vs_residual_range_{number_events}_events.png"
+        / f"primary_kaons_dEdx_vs_residual_range{file_suffix}_{number_events}_events.png"
     )
     primary_daughter_plot = (
         output_dir
-        / f"primary_and_daughter_kaons_dEdx_vs_residual_range_{number_events}_events.png"
+        / f"primary_and_daughter_kaons_dEdx_vs_residual_range{file_suffix}_{number_events}_events.png"
     )
     primary_zoom_plot = (
         output_dir
-        / f"primary_kaons_dEdx_vs_residual_range_xmax10cm_ymax40MeVcm_{number_events}_events.png"
+        / f"primary_kaons_dEdx_vs_residual_range_xmax10cm_ymax40MeVcm{file_suffix}_{number_events}_events.png"
     )
     primary_daughter_zoom_plot = (
         output_dir
-        / f"primary_and_daughter_kaons_dEdx_vs_residual_range_xmax10cm_ymax40MeVcm_{number_events}_events.png"
+        / f"primary_and_daughter_kaons_dEdx_vs_residual_range_xmax10cm_ymax40MeVcm{file_suffix}_{number_events}_events.png"
     )
-    binned_csv = output_dir / f"primary_kaon_dEdx_binned_segments_{number_events}_events.csv"
+    binned_csv = output_dir / f"primary_kaon_dEdx_binned_segments{file_suffix}_{number_events}_events.csv"
 
-    plot_primary_kaons(binned, primary_plot, number_events, args.bin_width_cm)
+    plot_primary_kaons(binned, primary_plot, number_events, binning_label)
     plot_primary_and_daughter_kaons(
-        binned, primary_daughter_plot, number_events, args.bin_width_cm
+        binned, primary_daughter_plot, number_events, binning_label
     )
     plot_primary_kaons(
         binned,
         primary_zoom_plot,
         number_events,
-        args.bin_width_cm,
+        binning_label,
         x_max_cm=DEFAULT_ZOOM_X_MAX_CM,
         y_max=DEFAULT_ZOOM_Y_MAX_MEV_PER_CM,
     )
@@ -513,7 +635,7 @@ def main():
         binned,
         primary_daughter_zoom_plot,
         number_events,
-        args.bin_width_cm,
+        binning_label,
         x_max_cm=DEFAULT_ZOOM_X_MAX_CM,
         y_max=DEFAULT_ZOOM_Y_MAX_MEV_PER_CM,
     )
