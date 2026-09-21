@@ -218,8 +218,10 @@ def main() -> None:
         # Count each muon charge separately at generator final state.
         charge_counts = [int(ak.sum(final_pdg == pdg)) for pdg in MUON_PDGS]
         # Draw the charge count bars using the fixed charge colors.
-        axes[0].bar([MUON_LABELS[pdg] for pdg in MUON_PDGS], charge_counts,
-                    color=[MUON_COLORS[pdg] for pdg in MUON_PDGS])
+        charge_bars = axes[0].bar([MUON_LABELS[pdg] for pdg in MUON_PDGS], charge_counts,
+                                  color=[MUON_COLORS[pdg] for pdg in MUON_PDGS])
+        # Print exact charge counts above the bars.
+        axes[0].bar_label(charge_bars, labels=[f"{count:,}" for count in charge_counts], padding=3)
         # Label the count plot with its exact truth definition.
         axes[0].set(title="Generator final-state muon charges", ylabel="Number of muons")
         # Add the overall sample size and muon event fraction.
@@ -228,11 +230,18 @@ def main() -> None:
         # Choose integer-centered bins through the largest observed multiplicity.
         multiplicity_bins = np.arange(int(np.max(multiplicity)) + 2) - 0.5
         # Draw the number of final-state muons per atmospheric-neutrino interaction.
-        axes[1].hist(multiplicity, bins=multiplicity_bins, color="#4d4d4d", edgecolor="white")
+        multiplicity_counts, _, multiplicity_patches = axes[1].hist(
+            multiplicity, bins=multiplicity_bins, color="#4d4d4d", edgecolor="white"
+        )
+        # Print exact event counts above each populated multiplicity bin.
+        axes[1].bar_label(multiplicity_patches, labels=[f"{int(count):,}" for count in multiplicity_counts], padding=3)
         # Place ticks at integer multiplicities only.
         axes[1].set_xticks(np.arange(int(np.max(multiplicity)) + 1))
         # Label the multiplicity distribution.
         axes[1].set(title="Muon multiplicity per event", xlabel="Generator final-state muons", ylabel="Events")
+        # State how many events do and do not contain a generator final-state muon.
+        annotate(axes[1], [f"Muon events: {events_with_muons:,} ({events_with_muons / event_count:.1%})",
+                           f"Zero-muon events: {event_count - events_with_muons:,} ({1.0 - events_with_muons / event_count:.1%})"])
         # Give the PDF page a descriptive title.
         figure.suptitle("Atmospheric-neutrino muon truth overview")
         # Write and close the completed overview page.
@@ -250,22 +259,32 @@ def main() -> None:
             momentum = flatten_selected(final_momentum, charge_mask)
             # Draw kinetic energy on logarithmic bins spanning the populated sample.
             axes[0].hist(kinetic, bins=np.geomspace(max(1.0, np.min(kinetic[kinetic > 0])), np.max(kinetic) * 1.001, 45),
-                         histtype="step", linewidth=1.8, color=MUON_COLORS[pdg], label=f"{MUON_LABELS[pdg]} ({len(kinetic):,})")
+                         histtype="step", linewidth=1.8, color=MUON_COLORS[pdg],
+                         label=f"{MUON_LABELS[pdg]}: N={len(kinetic):,}, med={np.median(kinetic):.0f}, mean={np.mean(kinetic):.0f} MeV")
             # Draw momentum using logarithmic bins suitable for the broad atmospheric spectrum.
             axes[1].hist(momentum, bins=np.geomspace(max(1.0, np.min(momentum[momentum > 0])), np.max(momentum) * 1.001, 45),
-                         histtype="step", linewidth=1.8, color=MUON_COLORS[pdg], label=f"{MUON_LABELS[pdg]} ({len(momentum):,})")
+                         histtype="step", linewidth=1.8, color=MUON_COLORS[pdg],
+                         label=f"{MUON_LABELS[pdg]}: N={len(momentum):,}, med={np.median(momentum):.0f}, mean={np.mean(momentum):.0f} MeV/c")
         # Use logarithmic x axes because atmospheric-neutrino kinematics span orders of magnitude.
         axes[0].set_xscale("log")
         # Label the kinetic-energy distribution in the stored Geant4 truth units.
         axes[0].set(title="Muon kinetic energy", xlabel="Kinetic energy [MeV]", ylabel="Muons")
         # Display the charge legend without a surrounding frame.
         axes[0].legend(frameon=False)
+        # Add an overall robust interval so the full selected population is summarized on the energy panel.
+        overall_kinetic = flatten_selected(muon_kinetic_energy, muon_mask)
+        # Print the central interval separately from the charge-resolved legend.
+        annotate(axes[0], [f"Overall central 90%: {np.percentile(overall_kinetic, 5):.0f}-{np.percentile(overall_kinetic, 95):.0f} MeV"])
         # Apply the same logarithmic scale to momentum.
         axes[1].set_xscale("log")
         # Label the momentum distribution.
         axes[1].set(title="Muon momentum", xlabel=r"Momentum [MeV/$c$]", ylabel="Muons")
         # Display the charge legend on the momentum panel.
         axes[1].legend(frameon=False)
+        # Flatten the complete selected momentum population for an overall interval.
+        overall_momentum = flatten_selected(final_momentum, muon_mask)
+        # Add the robust overall momentum range.
+        annotate(axes[1], [f"Overall central 90%: {np.percentile(overall_momentum, 5):.0f}-{np.percentile(overall_momentum, 95):.0f} MeV/c"])
         # Give the page a concise title.
         figure.suptitle("Generator final-state muon kinematics")
         # Write and close the kinematics page.
@@ -283,7 +302,7 @@ def main() -> None:
             cosine = cosine[np.isfinite(cosine)]
             # Draw a common-range angular histogram for direct shape comparison.
             axes[0].hist(cosine, bins=30, range=(-1.0, 1.0), histtype="step", linewidth=1.8,
-                         color=MUON_COLORS[pdg], label=MUON_LABELS[pdg])
+                         color=MUON_COLORS[pdg], label=f"{MUON_LABELS[pdg]}: N={len(cosine):,}, med={np.median(cosine):.2f}, mean={np.mean(cosine):.2f}")
         # Label the detector-coordinate zenith proxy explicitly.
         axes[0].set(title="Muon direction", xlabel=r"$\cos\theta_z=p_z/|p|$", ylabel="Muons")
         # Display the charge key.
@@ -320,7 +339,10 @@ def main() -> None:
         # Label the physical scattering-angle check.
         axes[1].set(title="Neutrino-muon opening angle", xlabel=r"$\angle(\nu,\mu)$ [degrees]", ylabel="Muons")
         # Explain the expected high-energy trend directly on the page.
-        annotate(axes[1], ["Higher-energy CC events", "should be more forward-going"])
+        annotate(axes[1], [f"Muon pairs: {len(opening_angles):,}",
+                           f"Median opening angle: {np.median(opening_angles):.1f} degrees",
+                           f"Mean: {np.mean(opening_angles):.1f}; central 90%: {np.percentile(opening_angles, 5):.1f}-{np.percentile(opening_angles, 95):.1f} degrees",
+                           "Higher-energy CC events are more forward-going"])
         # Give the page a concise title.
         figure.suptitle("Muon angular distributions")
         # Write and close the angular page.
@@ -380,6 +402,11 @@ def main() -> None:
         figure.colorbar(energy_hexbin, ax=axes[0], label="Muon pairs per hexbin")
         # Label the event-level energy correlation.
         axes[0].set(title="Incoming vs outgoing energy", xlabel=r"Incoming $E_\nu$ [MeV]", ylabel=r"Final-state $E_\mu$ [MeV]")
+        # Add the energy-transfer statistics quoted in the report.
+        annotate(axes[0], [f"Pairs: {len(paired_muon_energy):,}",
+                           f"Median E_mu/E_nu: {np.median(paired_muon_energy / paired_neutrino_energy):.2f}",
+                           f"Mean ratio: {np.mean(paired_muon_energy / paired_neutrino_energy):.2f}; central 90%: {np.percentile(paired_muon_energy / paired_neutrino_energy, 5):.2f}-{np.percentile(paired_muon_energy / paired_neutrino_energy, 95):.2f}",
+                           f"E_mu <= E_nu: {np.mean(paired_muon_energy <= 1.000001 * paired_neutrino_energy):.1%}"])
         # Select finite, positive-energy pairs for the angular energy trend.
         valid_pairs = np.isfinite(paired_opening_angle) & (paired_neutrino_energy > 0.0)
         # Draw the energy dependence with logarithmic neutrino-energy binning and logarithmic count color.
@@ -392,6 +419,9 @@ def main() -> None:
         # Label the forward-scattering validation panel.
         axes[1].set(title="Direction correlation vs energy", xlabel=r"Incoming $E_\nu$ [MeV]",
                     ylabel=r"$\angle(\nu,\mu)$ [degrees]")
+        # Quote the low- and high-energy medians that demonstrate forward collimation.
+        annotate(axes[1], [f"Median below 1 GeV: {np.nanmedian(paired_opening_angle[valid_pairs & (paired_neutrino_energy < 1000.0)]):.1f} degrees",
+                           f"Median at/above 3 GeV: {np.nanmedian(paired_opening_angle[valid_pairs & (paired_neutrino_energy >= 3000.0)]):.1f} degrees"])
         # Give the page a descriptive title.
         figure.suptitle("Neutrino-muon correlations")
         # Write and close the final page.
@@ -442,14 +472,18 @@ def main() -> None:
         # Append a second report page interpreting the kinematic and angular trends.
         add_report_page(pdf, "Muon physics interpretation", [
             ("Energy and momentum",
-             f"The median muon kinetic energy is {np.median(all_muon_kinetic):.0f} MeV; the central 90% spans "
+             f"The median muon kinetic energy is {np.median(all_muon_kinetic):.0f} MeV and the mean is "
+             f"{np.mean(all_muon_kinetic):.0f} MeV; the central 90% spans "
              f"{np.percentile(all_muon_kinetic, 5):.0f} to {np.percentile(all_muon_kinetic, 95):.0f} MeV. The broad, "
-             "right-skewed spectra are consistent with the broad atmospheric-neutrino spectrum. Muon total energy "
+             "right-skewed spectra are consistent with the broad atmospheric-neutrino spectrum. The mean exceeds "
+             "the median because a relatively small high-energy tail pulls it upward, so the median is the more "
+             "stable typical-event summary while the mean remains useful for energy-budget accounting. Muon total energy "
              f"is below the incoming neutrino energy for {np.mean(energy_fraction <= 1.000001):.2%} of pairs, and "
              f"the median E_mu/E_nu is {np.median(energy_fraction):.2f}; the remaining energy goes into the hadronic "
              "system and nuclear recoil or removal energy."),
             ("Angular behavior",
-             f"The overall median neutrino-muon opening angle is {np.nanmedian(paired_opening_angle):.1f} degrees. "
+             f"The overall median neutrino-muon opening angle is {np.nanmedian(paired_opening_angle):.1f} degrees and "
+             f"the mean is {np.nanmean(paired_opening_angle):.1f} degrees. "
              f"Below 1 GeV it is {np.nanmedian(paired_opening_angle[low_energy_pairs]):.1f} degrees, while at and "
              f"above 3 GeV it narrows to {np.nanmedian(paired_opening_angle[high_energy_pairs]):.1f} degrees. This "
              "forward collimation with increasing energy is the expected charged-current behavior and is clearly "

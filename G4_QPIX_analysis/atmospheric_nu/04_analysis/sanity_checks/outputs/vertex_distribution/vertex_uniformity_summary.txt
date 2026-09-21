@@ -1,0 +1,14 @@
+Atmospheric-neutrino interaction-vertex uniformity summary
+Input: /Users/fb_local/Programs/Q_PIX_GEANT4/G4_QPIX_analysis/atmospheric_nu/02_qpix_geant4/output/atmospheric_g4.root
+Events: 10000
+Configured active volume [cm]: x=[0,230], y=[0,600], z=[0,360]
+Vertices outside configured active volume: 0
+Uniformity bins per axis: 20
+x: min=0.079034 cm, max=229.975103 cm, mean=115.132810 cm, expected_mean=115.000000 cm, reduced_chi_square=0.5577, max_abs_pull=1.8783
+y: min=0.030499 cm, max=599.908668 cm, mean=300.996777 cm, expected_mean=300.000000 cm, reduced_chi_square=1.1185, max_abs_pull=2.5491
+z: min=0.054651 cm, max=359.992391 cm, mean=181.024741 cm, expected_mean=180.000000 cm, reduced_chi_square=1.1808, max_abs_pull=2.1913
+
+Interpretation:
+A reduced chi-square near 1 is typical of statistical fluctuations around equal bin occupancy.
+Values modestly above or below 1 are expected in a finite sample; coherent trends across adjacent bins matter more.
+The pull panels should fluctuate around zero without a sustained slope, central excess, edge deficit, or periodic structure.

@@ -101,3 +101,56 @@ These PDFs are strongest as regression and bookkeeping tests. For physics valida
 3. Compare relevant differential cross sections and particle-production rates with external neutrino-argon or nearby-target measurements. Beam data do not reproduce the atmospheric flux directly, but they test the interaction model that is folded with that flux.
 
 The expected event distribution is a convolution of atmospheric flux, oscillation probability, neutrino-nucleus cross section, nuclear effects/final-state interactions, target composition, and acceptance. There is therefore no single closed-form theoretical muon or kaon spectrum to overlay on these unweighted detector-level plots. A controlled generator-level prediction with the same configuration is the appropriate quantitative reference.
+
+## `vertex_distribution.py`
+
+This script checks whether atmospheric-neutrino interaction vertices are uniformly distributed through the configured
+`230 x 600 x 360 cm` active volume. It reads the common event vertex from `generator_initial_particle_x/y/z` and
+verifies that all generator initial-state particles in each event share that vertex.
+
+Run it from the repository root:
+
+```bash
+./uproot_env/bin/python G4_QPIX_analysis/atmospheric_nu/04_analysis/sanity_checks/vertex_distribution.py
+```
+
+It writes three PNG figures and a text summary under `outputs/vertex_distribution/`:
+
+1. **3D vertex display:** a transparent point cloud inside a wireframe active-volume boundary. Vertex `z` supplies the
+   color only to improve depth perception.
+2. **Orthogonal projections:** binned `x-y`, `x-z`, and `y-z` density maps. These are generally more sensitive than the
+   3D view to holes, planes, edge effects, or localized clustering.
+3. **Uniformity checks:** one-dimensional equal-width occupancy histograms and standardized residuals for each axis.
+   A reduced chi-square near one and pulls fluctuating around zero are consistent with uniform random sampling.
+
+The script also checks containment, reports coordinate ranges and means, and accepts alternate dimensions through
+`--x-length`, `--y-length`, and `--z-length`.
+
+## `atmospheric_neutrino_truth.py`
+
+This script studies the incoming atmospheric neutrino and its generator-level interaction outcome. Run it with:
+
+```bash
+./uproot_env/bin/python G4_QPIX_analysis/atmospheric_nu/04_analysis/sanity_checks/atmospheric_neutrino_truth.py
+```
+
+It creates `outputs/atmospheric_neutrino_truth_checks.pdf`, a separate
+`outputs/atmospheric_neutrino_truth_report.pdf`, and five standalone figures under `outputs/neutrino_pngs/`:
+
+1. Incoming flavor counts and neutrino-versus-antineutrino interaction counts.
+2. Incoming energy spectra and energy-dependent flavor fractions.
+3. Detector-coordinate `cos(theta_z)` and azimuth distributions.
+4. Energy-direction density and median-energy directional profile.
+5. Charged-current-like final-state classification and final-state multiplicity versus incoming energy.
+
+The raw distributions describe generated interactions, not the atmospheric flux alone. They include the effects of
+flux sampling, neutrino/antineutrino cross sections, the argon target, and the generator configuration. Oscillation and
+event-weight treatment must be matched before comparing these counts with an underground detector prediction.
+
+### Statistical annotations
+
+Across the muon, kaon, and atmospheric-neutrino studies, continuous distributions show the sample size, median,
+mean, and central 90% interval where space permits. The median is the primary typical-event summary because the
+energy and momentum spectra are right-skewed; the mean is retained to expose sensitivity to the high-energy tail.
+Multiplicity plots instead emphasize exact event counts and fractions because they are discrete. Ordinary arithmetic
+means are intentionally omitted for azimuth, which is a circular variable and requires circular statistics.

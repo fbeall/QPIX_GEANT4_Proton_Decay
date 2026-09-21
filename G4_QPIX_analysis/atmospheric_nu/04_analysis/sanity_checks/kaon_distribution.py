@@ -75,9 +75,9 @@ def incoming_neutrino_energy(arrays: dict[str, ak.Array]) -> np.ndarray:
 
 
 # Add a compact text summary to one plot panel.
-def annotate(axis: plt.Axes, lines: list[str]) -> None:
+def annotate(axis: plt.Axes, lines: list[str], location: tuple[float, float] = (0.98, 0.97)) -> None:
     # Place the lines in a translucent white box at the upper-right of the axis.
-    axis.text(0.98, 0.97, "\n".join(lines), transform=axis.transAxes, ha="right", va="top", fontsize=9,
+    axis.text(location[0], location[1], "\n".join(lines), transform=axis.transAxes, ha="right", va="top", fontsize=9,
               bbox={"facecolor": "white", "edgecolor": "0.7", "alpha": 0.88})
 
 
@@ -226,21 +226,32 @@ def main() -> None:
         # Count each generator kaon species in the fixed label order.
         generator_counts = [int(ak.sum(final_pdg == pdg)) for pdg in KAON_PDGS]
         # Draw species counts, including zero-count species to expose expected absences.
-        axes[0].bar([KAON_LABELS[pdg] for pdg in KAON_PDGS], generator_counts,
-                    color=[KAON_COLORS[pdg] for pdg in KAON_PDGS])
+        species_bars = axes[0].bar([KAON_LABELS[pdg] for pdg in KAON_PDGS], generator_counts,
+                                   color=[KAON_COLORS[pdg] for pdg in KAON_PDGS])
+        # Print exact species counts above every bar, including absent species.
+        axes[0].bar_label(species_bars, labels=[str(count) for count in generator_counts], padding=3)
         # Label the generator species plot.
         axes[0].set(title="Generator final-state kaon species", ylabel="Number of kaons")
         # Add sample and event-fraction context.
         annotate(axes[0], [f"Events: {event_count:,}", f"Kaon events: {generator_kaon_events:,}",
-                           f"Fraction: {generator_kaon_events / event_count:.4f}"])
+                           f"Fraction: {generator_kaon_events / event_count:.3%}",
+                           f"K+/K- ratio: {generator_counts[0] / generator_counts[1]:.2f}"])
         # Define integer-centered multiplicity bins.
         multiplicity_bins = np.arange(int(np.max(generator_multiplicity)) + 2) - 0.5
         # Draw event-level generator kaon multiplicity.
-        axes[1].hist(generator_multiplicity, bins=multiplicity_bins, color="#4d4d4d", edgecolor="white")
+        multiplicity_counts, _, multiplicity_patches = axes[1].hist(
+            generator_multiplicity, bins=multiplicity_bins, color="#4d4d4d", edgecolor="white"
+        )
+        # Print exact event counts above each multiplicity bin.
+        axes[1].bar_label(multiplicity_patches, labels=[f"{int(count):,}" for count in multiplicity_counts], padding=3)
         # Use integer tick marks for multiplicity.
         axes[1].set_xticks(np.arange(int(np.max(generator_multiplicity)) + 1))
         # Label the multiplicity plot.
         axes[1].set(title="Kaon multiplicity per event", xlabel="Generator final-state kaons", ylabel="Events")
+        # Summarize the rare kaon-event population and multi-kaon excess.
+        annotate(axes[1], [f"Kaon events: {generator_kaon_events} ({generator_kaon_events / event_count:.3%})",
+                           f"Total kaons: {generator_kaons}",
+                           f"Kaons beyond one/event: {generator_kaons - generator_kaon_events}"])
         # Add a page title.
         figure.suptitle("Atmospheric-neutrino kaon truth overview")
         # Save and close the overview page.
@@ -262,22 +273,32 @@ def main() -> None:
             momentum = flatten_selected(generator_momentum, species_mask)
             # Draw kinetic energy with common logarithmic binning.
             axes[0].hist(kinetic, bins=np.geomspace(max(1.0, np.min(kinetic[kinetic > 0])), np.max(kinetic) * 1.001, 30),
-                         histtype="step", linewidth=1.8, color=KAON_COLORS[pdg], label=f"{KAON_LABELS[pdg]} ({count})")
+                         histtype="step", linewidth=1.8, color=KAON_COLORS[pdg],
+                         label=f"{KAON_LABELS[pdg]}: N={count}, med={np.median(kinetic):.0f}, mean={np.mean(kinetic):.0f} MeV")
             # Draw momentum with common logarithmic binning.
             axes[1].hist(momentum, bins=np.geomspace(max(1.0, np.min(momentum[momentum > 0])), np.max(momentum) * 1.001, 30),
-                         histtype="step", linewidth=1.8, color=KAON_COLORS[pdg], label=f"{KAON_LABELS[pdg]} ({count})")
+                         histtype="step", linewidth=1.8, color=KAON_COLORS[pdg],
+                         label=f"{KAON_LABELS[pdg]}: N={count}, med={np.median(momentum):.0f}, mean={np.mean(momentum):.0f} MeV/c")
         # Use a logarithmic energy axis for the atmospheric spectrum.
         axes[0].set_xscale("log")
         # Label the kinetic-energy panel.
         axes[0].set(title="Kaon kinetic energy", xlabel="Kinetic energy [MeV]", ylabel="Kaons")
         # Display the species legend.
         axes[0].legend(frameon=False, fontsize=9)
+        # Flatten all generator kaon kinetic energies for an overall robust interval.
+        overall_generator_kinetic = flatten_selected(generator_kinetic, generator_kaon_mask)
+        # Display the central interval without overloading the species legend.
+        annotate(axes[0], [f"Overall central 90%: {np.percentile(overall_generator_kinetic, 5):.0f}-{np.percentile(overall_generator_kinetic, 95):.0f} MeV"], (0.98, 0.42))
         # Use a logarithmic momentum axis.
         axes[1].set_xscale("log")
         # Label the momentum panel.
         axes[1].set(title="Kaon momentum", xlabel=r"Momentum [MeV/$c$]", ylabel="Kaons")
         # Display the species legend.
         axes[1].legend(frameon=False, fontsize=9)
+        # Flatten all generator kaon momentum magnitudes for an overall robust interval.
+        overall_generator_momentum = flatten_selected(generator_momentum, generator_kaon_mask)
+        # Display the central momentum interval.
+        annotate(axes[1], [f"Overall central 90%: {np.percentile(overall_generator_momentum, 5):.0f}-{np.percentile(overall_generator_momentum, 95):.0f} MeV/c"], (0.98, 0.42))
         # Add a page title.
         figure.suptitle("Generator final-state kaon kinematics")
         # Save and close the kinematic page.
@@ -299,7 +320,7 @@ def main() -> None:
             cosine = cosine[np.isfinite(cosine)]
             # Draw the species angular distribution.
             axes[0].hist(cosine, bins=24, range=(-1.0, 1.0), histtype="step", linewidth=1.8,
-                         color=KAON_COLORS[pdg], label=KAON_LABELS[pdg])
+                         color=KAON_COLORS[pdg], label=f"{KAON_LABELS[pdg]}: N={count}, med={np.median(cosine):.2f}, mean={np.mean(cosine):.2f}")
         # Label the detector-coordinate direction panel.
         axes[0].set(title="Kaon direction", xlabel=r"$\cos\theta_z=p_z/|p|$", ylabel="Kaons")
         # Display the species legend.
@@ -316,7 +337,11 @@ def main() -> None:
         # Label this as a per-kaon spectrum, since multi-kaon events contribute more than once.
         axes[1].set(title="Incoming energy for produced kaons", xlabel=r"Incoming $E_\nu$ [MeV]", ylabel="Kaons")
         # Add the expected threshold-oriented interpretation.
-        annotate(axes[1], ["Kaon production should favor", "higher-energy interactions"])
+        annotate(axes[1], [f"Produced kaons: {len(parent_energy)}",
+                           f"Median E_nu: {np.median(parent_energy):.0f} MeV",
+                           f"Mean E_nu: {np.mean(parent_energy):.0f} MeV",
+                           f"Central 90%: {np.percentile(parent_energy, 5):.0f}-{np.percentile(parent_energy, 95):.0f} MeV",
+                           "Production favors higher-energy interactions"])
         # Add a page title.
         figure.suptitle("Kaon direction and production energy")
         # Save and close the angular/energy page.
@@ -349,6 +374,9 @@ def main() -> None:
         # Label the production-rate shape check and clarify that it is generator-model dependent.
         axes[0].set(title="Kaon-event fraction vs energy", xlabel=r"Incoming $E_\nu$ [MeV]",
                     ylabel="Events with >=1 kaon / all events")
+        # State the overall unweighted fraction and selected event count.
+        annotate(axes[0], [f"Overall: {generator_kaon_events}/{event_count:,} = {generator_kaon_events / event_count:.3%}",
+                           f"Highest-bin fraction: {np.nanmax(fractions):.1%}"])
         # Count transported Geant4 primary tracks by species.
         transported_counts = [int(ak.sum(primary_kaon_mask & (particle_pdg == pdg))) for pdg in KAON_PDGS]
         # Place paired generator and transported counts at neighboring x positions.
@@ -386,21 +414,30 @@ def main() -> None:
             kinetic = flatten_selected(transported_kinetic, species_mask)
             # Draw a species-resolved transported energy spectrum.
             axes[0].hist(kinetic, bins=np.geomspace(max(1.0, np.min(kinetic[kinetic > 0])), np.max(kinetic) * 1.001, 30),
-                         histtype="step", linewidth=1.8, color=KAON_COLORS[pdg], label=f"{KAON_LABELS[pdg]} ({count})")
+                         histtype="step", linewidth=1.8, color=KAON_COLORS[pdg],
+                         label=f"{KAON_LABELS[pdg]}: N={count}, med={np.median(kinetic):.0f}, mean={np.mean(kinetic):.0f} MeV")
         # Use logarithmic energy for the broad primary spectrum.
         axes[0].set_xscale("log")
         # Label the transported-primary distribution.
         axes[0].set(title="Transported primary-kaon energy", xlabel="Initial kinetic energy [MeV]", ylabel="Primary tracks")
         # Display the species legend.
         axes[0].legend(frameon=False, fontsize=9)
+        # Flatten all transported-primary energies for an overall interval.
+        all_transported_kinetic = flatten_selected(transported_kinetic, primary_kaon_mask)
+        # Summarize the complete transported population on the plot.
+        annotate(axes[0], [f"Overall central 90%: {np.percentile(all_transported_kinetic, 5):.0f}-{np.percentile(all_transported_kinetic, 95):.0f} MeV"], (0.98, 0.42))
         # Count selected primary kaons marked as decayed and not decayed by the G4 truth record.
         decay_counts = [int(ak.sum(primary_kaon_mask & (arrays["particle_decay_flag"] == flag))) for flag in (0, 1)]
         # Draw the two stored end-of-life categories.
-        axes[1].bar(["Not marked decayed", "Marked decayed"], decay_counts, color=["#7570b3", "#e7298a"])
+        decay_bars = axes[1].bar(["Not marked decayed", "Marked decayed"], decay_counts,
+                                 color=["#7570b3", "#e7298a"])
+        # Print exact transport-outcome counts above both bars.
+        axes[1].bar_label(decay_bars, labels=[str(count) for count in decay_counts], padding=3)
         # Label this explicitly as a Geant4 tracking outcome rather than a production cross section.
         axes[1].set(title="Transported primary-kaon decay flag", ylabel="Primary tracks")
         # Add exact counts to the panel.
-        annotate(axes[1], [f"Not decayed: {decay_counts[0]}", f"Decayed: {decay_counts[1]}"])
+        annotate(axes[1], [f"Not decayed: {decay_counts[0]} ({decay_counts[0] / transported_primary_kaons:.1%})",
+                           f"Decayed: {decay_counts[1]} ({decay_counts[1] / transported_primary_kaons:.1%})"], (0.58, 0.97))
         # Add a page title.
         figure.suptitle("Geant4 primary-kaon transport checks")
         # Save and close the transport page.
@@ -441,10 +478,12 @@ def main() -> None:
         # Append the second report page interpreting kinematics and Geant4 handoff.
         add_report_page(pdf, "Kaon physics interpretation", [
             ("Production energy and kinematics",
-             f"The median kaon kinetic energy is {np.median(all_kaon_kinetic):.0f} MeV, with a central 90% interval of "
+             f"The median kaon kinetic energy is {np.median(all_kaon_kinetic):.0f} MeV and the mean is "
+             f"{np.mean(all_kaon_kinetic):.0f} MeV, with a central 90% interval of "
              f"{np.percentile(all_kaon_kinetic, 5):.0f} to {np.percentile(all_kaon_kinetic, 95):.0f} MeV. The incoming "
-             f"neutrino energy for produced kaons has a median of {np.median(parent_energy):.0f} MeV and begins near "
-             f"{np.min(parent_energy):.0f} MeV in this finite sample. The rising kaon-event fraction with neutrino "
+             f"neutrino energy for produced kaons has a median of {np.median(parent_energy):.0f} MeV and a mean of "
+             f"{np.mean(parent_energy):.0f} MeV. Means are tail-sensitive and especially unstable for the rare K- "
+             "subsample, so medians and central intervals are the primary typical-event summaries here. The rising kaon-event fraction with neutrino "
              "energy is the expected threshold and phase-space behavior: higher-energy interactions can support "
              "strange-hadron production more readily."),
             ("Direction distribution",

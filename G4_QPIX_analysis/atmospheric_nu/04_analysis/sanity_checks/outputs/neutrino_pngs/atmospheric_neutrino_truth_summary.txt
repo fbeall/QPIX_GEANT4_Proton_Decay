@@ -1,0 +1,15 @@
+Atmospheric-neutrino generator-truth summary
+Input: /Users/fb_local/Programs/Q_PIX_GEANT4/G4_QPIX_analysis/atmospheric_nu/02_qpix_geant4/output/atmospheric_g4.root
+Events: 10000
+Energy median MeV: 734.764721
+Energy mean MeV: 1300.828323
+Energy central 90% MeV: 193.365884, 4648.057513
+Neutrino/antineutrino interaction ratio: 3.803074
+CC-like events: 6663 (0.666300)
+Final-state multiplicity median: 3.000000
+Final-state multiplicity mean: 5.652600
+Correlation log10(E_nu) vs final multiplicity: 0.113854
+nu_e: count=2972, median_energy_MeV=651.922087, mean_energy_MeV=1132.930549, median_cos_theta_z=-0.052586, mean_cos_theta_z=-0.046219, cc_like_fraction=0.700875
+anti-nu_e: count=646, median_energy_MeV=722.813068, mean_energy_MeV=1230.343169, median_cos_theta_z=-0.062231, mean_cos_theta_z=-0.070626, cc_like_fraction=0.574303
+nu_mu: count=4946, median_energy_MeV=760.214455, mean_energy_MeV=1344.482212, median_cos_theta_z=-0.074623, mean_cos_theta_z=-0.057257, cc_like_fraction=0.684796
+anti-nu_mu: count=1436, median_energy_MeV=880.674681, mean_energy_MeV=1529.667778, median_cos_theta_z=-0.047941, mean_cos_theta_z=-0.046779, cc_like_fraction=0.572423
