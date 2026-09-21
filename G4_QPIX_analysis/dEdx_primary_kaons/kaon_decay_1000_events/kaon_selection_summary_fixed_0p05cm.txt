@@ -1,0 +1,29 @@
+Primary/daughter kaon uniform-bin comparison summary
+====================================================
+
+Primary kaons in particles_output: 1000
+Daughter kaons of primary kaons: 43
+Kaon tracks with G4 hit segments: 1043
+Input positive-energy G4 steps: 41834
+Output track-bin measurements: 32910
+
+Midpoint assignment:
+  Every positive-energy Geant4 step is kept whole.
+  Every step is assigned from its distance-from-track-start midpoint.
+  Uniform track-start bin width: 0.05 cm
+  No endpoint transition or special endpoint algorithm is used.
+  dE/dx = summed deposited energy / summed G4 step length.
+  Residual range is track length minus the path-weighted bin midpoint.
+
+Accounting checks:
+  Input energy: 81320.9605183 MeV
+  Grouped energy: 81320.9605183 MeV
+  Energy difference: 0 MeV
+  Input path length: 11037.8160413 cm
+  Grouped path length: 11037.8160413 cm
+  Path-length difference: 0 cm
+
+Purpose:
+  This comparison tests whether uniform fine bins add useful structure
+  or primarily expose fluctuations from individual Geant4 steps.
+  Bethe-Bloch predictions remain black dashed lines outside legends.

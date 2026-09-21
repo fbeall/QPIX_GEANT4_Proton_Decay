@@ -62,6 +62,22 @@ This is truth-assisted particle identification. The charge and coordinates come
 from resets, but this first version does not attempt detector-only particle or
 track separation.
 
+**Note:** The recorded weights can sum to more than the nominal reset threshold
+(6250 electrons in the current sample). QPix RTD processes electron arrivals at
+discrete sampling times, so a group of electrons can push the accumulated charge
+past the threshold before the reset is evaluated. The pixel subtracts exactly
+one threshold and carries the excess charge toward its next reset. However, the
+truth weights for the current reset include all electrons accumulated before
+that sampling check. When the remaining charge is below another threshold, the
+truth-ID buffer is cleared, so the track attribution of the carried excess is
+not propagated cleanly to the next reset. This reconstruction currently assigns
+the complete recorded `MC_Weights` sum, including any above-threshold excess, to
+the current reset point. It does not cap the reset charge at the threshold or
+redistribute the excess to a later reset. Consequently, reset-level charge and
+per-track attribution should be treated as approximate when the weights exceed
+the threshold. This bookkeeping behavior requires further investigation before
+precision charge reconstruction.
+
 ### 3. Reconstruct a simple track coordinate
 
 For each particle track, the script fits a charge-weighted principal axis to its

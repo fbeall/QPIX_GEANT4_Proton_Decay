@@ -1,6 +1,47 @@
+Primary/daughter kaon dE/dx analysis summary
+============================================
+
+Truth selection:
 Primary kaons in particles_output: 1000
 Daughter kaons of primary kaons in particles_output: 43
 Kaon tracks with G4 hit segments: 1043
+Input positive-energy G4 steps: 41834
+Output track-bin measurements: 23177
+
+Residual-range reconstruction:
+  Every positive-energy Geant4 step is kept whole.
+  Each step is assigned to exactly one bin from its midpoint.
+  No step is split and no energy is redistributed between bins.
+  dE/dx = summed deposited energy / summed G4 step length.
+  The plotted x coordinate is the path-weighted step-midpoint range.
+
+Hybrid midpoint bins:
+  Endpoint region: 0 to 1 cm residual range
+  Endpoint bin width: 0.05 cm
+  Number of endpoint bins: 20
+  Above transition: 1 cm bins from each track start
+  A midpoint exactly at the transition belongs to the upper region.
+
+Conservation checks:
+  Input energy: 81320.9605183 MeV
+  Grouped energy: 81320.9605183 MeV
+  Energy difference: -1.45519152284e-11 MeV
+  Input path length: 11037.8160413 cm
+  Grouped path length: 11037.8160413 cm
+  Path-length difference: 1.81898940355e-12 cm
+
+Saved tables:
+  primary_kaon_dEdx_binned_segments_*.csv contains event, track, PDG,
+  kaon category, particles_output metadata, bin boundaries, deposited
+  energy, complete-step path, residual range, dE/dx, source-step count,
+  nominal width, path fraction, and midpoint-binning region.
+  primary_kaon_dEdx_binning_diagnostics_*.csv records configuration
+  and energy/path conservation totals for reproducibility.
+  kaon_track_summary.csv contains one row per selected kaon track.
+
+Plot convention:
+  Simulated primary and daughter kaons retain their colored markers.
+  Bethe-Bloch predictions are black dashed lines and are not in legends.
 
 Process key reminder:
   14 = hadElastic

@@ -1,0 +1,27 @@
+All-particle uniform-bin comparison summary
+===========================================
+
+Midpoint assignment:
+  Every positive-energy Geant4 step is kept whole.
+  Every step is assigned from its distance-from-track-start midpoint.
+  Uniform track-start bin width: 0.05 cm
+  No endpoint transition or special endpoint algorithm is used.
+  dE/dx = summed deposited energy / summed G4 step length.
+  Residual range is track length minus the path-weighted bin midpoint.
+
+Input and output:
+  Positive-energy G4 steps: 1914006
+  Output track-bin measurements: 711538
+
+Accounting checks:
+  Input energy: 356504.078864 MeV
+  Grouped energy: 356504.078864 MeV
+  Energy difference: 5.82076609135e-11 MeV
+  Input path length: 109438.470794 cm
+  Grouped path length: 109438.470794 cm
+  Path-length difference: 0 cm
+
+Purpose:
+  This is a comparison product for judging whether uniform fine bins
+  add useful structure or primarily expose individual G4-step noise.
+  Bethe-Bloch predictions remain black dashed lines outside legends.

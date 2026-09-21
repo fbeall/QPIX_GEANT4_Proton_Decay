@@ -15,12 +15,12 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from dedx_midpoint_binning import bin_steps_by_midpoint
+
 
 DEFAULT_BIN_WIDTH_CM = 1.0
-DEFAULT_MIN_BIN_WIDTH_CM = 0.1
-DEFAULT_MAX_BIN_WIDTH_CM = 1.0
-DEFAULT_FRACTIONAL_BIN_WIDTH = 0.15
-DEFAULT_ADAPTIVE_START_CM = 1.0
+DEFAULT_ENDPOINT_BIN_WIDTH_CM = 0.05
+DEFAULT_ENDPOINT_MAX_CM = 1.0
 DEFAULT_KAON_ZOOM_X_MAX_CM = 10.0
 DEFAULT_ALL_PARTICLES_ZOOM_X_MAX_CM = 40.0
 KAON_PDG = 321
@@ -128,82 +128,38 @@ def add_track_geometry(g4_hits):
     return hits
 
 
-def make_adaptive_bin_edges(
-    max_range_cm,
-    start_cm=DEFAULT_ADAPTIVE_START_CM,
-    min_width_cm=DEFAULT_MIN_BIN_WIDTH_CM,
-    max_width_cm=DEFAULT_MAX_BIN_WIDTH_CM,
-    fractional_width=DEFAULT_FRACTIONAL_BIN_WIDTH,
-):
-    if min_width_cm <= 0.0 or max_width_cm < min_width_cm:
-        raise ValueError("Adaptive bin widths must satisfy 0 < min <= max")
-    if fractional_width <= 0.0:
-        raise ValueError("fractional_width must be positive")
-
-    if start_cm < 0.0:
-        raise ValueError("start_cm must be nonnegative")
-    edges = [float(start_cm)]
-    while edges[-1] <= max_range_cm:
-        width = np.clip(
-            fractional_width * max(edges[-1], min_width_cm),
-            min_width_cm,
-            max_width_cm,
-        )
-        edges.append(edges[-1] + float(width))
-    return np.asarray(edges)
-
-
 def make_binned_dedx(
     g4_hits,
     bin_width_cm,
-    binning="adaptive",
-    min_bin_width_cm=DEFAULT_MIN_BIN_WIDTH_CM,
-    max_bin_width_cm=DEFAULT_MAX_BIN_WIDTH_CM,
-    fractional_bin_width=DEFAULT_FRACTIONAL_BIN_WIDTH,
-    adaptive_start_cm=DEFAULT_ADAPTIVE_START_CM,
+    binning="hybrid",
+    endpoint_bin_width_cm=DEFAULT_ENDPOINT_BIN_WIDTH_CM,
+    endpoint_max_cm=DEFAULT_ENDPOINT_MAX_CM,
 ):
     if bin_width_cm <= 0:
         raise ValueError("bin_width_cm must be positive")
 
     hits = add_track_geometry(g4_hits)
-    if binning == "adaptive":
-        edges = make_adaptive_bin_edges(
-            adaptive_start_cm,
-            0.0,
-            min_bin_width_cm,
-            max_bin_width_cm,
-            fractional_bin_width,
+    if binning == "hybrid":
+        # Assign every complete step by its midpoint. Fine residual-range bins
+        # are used only near the endpoint; the original track-start bins remain
+        # in force above the transition.
+        grouped, diagnostics = bin_steps_by_midpoint(
+            hits=hits,
+            group_columns=["event", "ParticleID", "PDG"],
+            endpoint_bin_width_cm=endpoint_bin_width_cm,
+            endpoint_max_cm=endpoint_max_cm,
+            track_bin_width_cm=bin_width_cm,
         )
-        residual_range = hits["residual_range_step_cm"].to_numpy()
-        adaptive_mask = residual_range < adaptive_start_cm
-        bin_index = np.empty(len(hits), dtype=int)
-        adaptive_index = np.searchsorted(
-            edges, residual_range[adaptive_mask], side="right"
-        ) - 1
-        bin_index[adaptive_mask] = np.clip(adaptive_index, 0, len(edges) - 2)
-        # Above the transition, retain the original distance-from-start bins.
-        # Negative IDs keep those groups separate from adaptive range bins.
-        fixed_index = np.floor(
-            hits.loc[~adaptive_mask, "s_mid_cm"].to_numpy() / bin_width_cm
-        ).astype(int)
-        bin_index[~adaptive_mask] = -(fixed_index + 1)
-        hits["range_bin_index"] = bin_index
-        hits["range_bin_low_cm"] = np.nan
-        hits["range_bin_high_cm"] = np.nan
-        hits.loc[adaptive_mask, "range_bin_low_cm"] = edges[bin_index[adaptive_mask]]
-        hits.loc[adaptive_mask, "range_bin_high_cm"] = edges[
-            bin_index[adaptive_mask] + 1
-        ]
-        hits["weighted_residual_range_cm"] = (
-            hits["residual_range_step_cm"] * hits["ds_cm"]
-        )
-        bin_columns = ["range_bin_index"]
+        # Remove undefined numerical results before plotting or CSV export.
+        grouped = grouped.replace([np.inf, -np.inf], np.nan)
+        grouped = grouped.dropna(subset=["residual_range_cm", "dEdx_MeV_per_cm"])
+        return grouped, diagnostics
     elif binning == "fixed":
         hits["s_bin_cm"] = np.floor(hits["s_mid_cm"] / bin_width_cm) * bin_width_cm
         hits["weighted_s_mid_cm"] = hits["s_mid_cm"] * hits["ds_cm"]
         bin_columns = ["s_bin_cm"]
     else:
-        raise ValueError("binning must be 'adaptive' or 'fixed'")
+        raise ValueError("binning must be 'hybrid' or 'fixed'")
 
     grouped = (
         hits.groupby(["event", "ParticleID", "PDG", *bin_columns], as_index=False)
@@ -212,7 +168,7 @@ def make_binned_dedx(
             path_length_cm=("ds_cm", "sum"),
             **(
                 {"weighted_residual_range_cm": ("weighted_residual_range_cm", "sum")}
-                if binning == "adaptive"
+                if binning == "hybrid"
                 else {"weighted_s_mid_cm": ("weighted_s_mid_cm", "sum")}
             ),
             **(
@@ -220,7 +176,7 @@ def make_binned_dedx(
                     "range_bin_low_cm": ("range_bin_low_cm", "first"),
                     "range_bin_high_cm": ("range_bin_high_cm", "first"),
                 }
-                if binning == "adaptive"
+                if binning == "hybrid"
                 else {}
             ),
             track_length_cm=("track_length_cm", "first"),
@@ -228,20 +184,25 @@ def make_binned_dedx(
         )
     )
     grouped = grouped[grouped["path_length_cm"] > 0.0].copy()
-    if binning == "adaptive":
-        grouped["residual_range_cm"] = (
-            grouped["weighted_residual_range_cm"] / grouped["path_length_cm"]
-        )
-        grouped["range_bin_width_cm"] = (
-            grouped["range_bin_high_cm"] - grouped["range_bin_low_cm"]
-        )
-    else:
-        grouped["s_mid_cm"] = grouped["weighted_s_mid_cm"] / grouped["path_length_cm"]
-        grouped["residual_range_cm"] = grouped["track_length_cm"] - grouped["s_mid_cm"]
+    grouped["s_mid_cm"] = grouped["weighted_s_mid_cm"] / grouped["path_length_cm"]
+    grouped["residual_range_cm"] = grouped["track_length_cm"] - grouped["s_mid_cm"]
     grouped["dEdx_MeV_per_cm"] = grouped["energy_MeV"] / grouped["path_length_cm"]
     grouped = grouped.replace([np.inf, -np.inf], np.nan)
     grouped = grouped.dropna(subset=["residual_range_cm", "dEdx_MeV_per_cm"])
-    return grouped
+    diagnostics = {
+        "assignment_method": "whole_step_track_start_midpoint",
+        "input_step_count": int(len(hits)),
+        "output_track_bin_count": int(len(grouped)),
+        "track_start_bin_width_cm": float(bin_width_cm),
+        "input_energy_MeV": float(hits["E"].sum()),
+        "grouped_energy_MeV": float(grouped["energy_MeV"].sum()),
+        "energy_difference_MeV": float(grouped["energy_MeV"].sum() - hits["E"].sum()),
+        "input_path_cm": float(hits["ds_cm"].sum()),
+        "grouped_path_cm": float(grouped["path_length_cm"].sum()),
+        "path_difference_cm": float(grouped["path_length_cm"].sum() - hits["ds_cm"].sum()),
+        "number_of_bins": int(grouped["s_bin_cm"].nunique()),
+    }
+    return grouped, diagnostics
 
 
 def bethe_bloch_lar(mass_MeV, max_range_cm, n_points=2500):
@@ -331,7 +292,7 @@ def plot_kaons_with_bethe(
         color=kaon_color,
         linewidth=2.0,
         linestyle="--",
-        label="Bethe-Bloch K in LAr",
+        label="_nolegend_",
     )
     ax.set_xlim(left=0.0, right=plot_max_range * 1.03)
     ax.set_ylim(
@@ -399,7 +360,10 @@ def plot_all_particles(
     pdg_colors = {}
     for index, pdg in enumerate(top_pdgs):
         group = binned[binned["PDG"] == pdg]
-        color = cmap(index % 10)
+        # Keep charged-kaon data purple in every binning comparison. Without
+        # this explicit assignment, changing bin width changes species counts,
+        # which can reorder the automatic palette and make comparisons harder.
+        color = "tab:purple" if abs(int(pdg)) == KAON_PDG else cmap(index % 10)
         pdg_colors[int(pdg)] = color
         ax.scatter(
             group["residual_range_cm"],
@@ -417,21 +381,16 @@ def plot_all_particles(
         if theory_max_range is None:
             theory_max_range = max(float(binned["residual_range_cm"].max()), 1.0)
         for label, config in THEORY_PARTICLES.items():
-            color = "black"
-            for pdg in config["pdgs"]:
-                if pdg in pdg_colors:
-                    color = pdg_colors[pdg]
-                    break
             theory_range, theory_dedx = bethe_bloch_lar(
                 config["mass_MeV"], theory_max_range
             )
             ax.plot(
                 theory_range,
                 theory_dedx,
-                color=color,
+                color="black",
                 linewidth=1.8,
                 linestyle="--",
-                label=f"Bethe-Bloch {label}",
+                label="_nolegend_",
             )
 
     if y_min is not None or y_max is not None:
@@ -479,6 +438,103 @@ def plot_all_particles(
     plt.close(fig)
 
 
+def write_analysis_summary(output_dir, binned, diagnostics):
+    """Write a human-readable record of the active midpoint configuration."""
+    # Fixed comparison runs contain no endpoint/upper-region split. Give these
+    # runs a dedicated width-specific summary and return before hybrid fields
+    # are accessed.
+    if diagnostics["assignment_method"] == "whole_step_track_start_midpoint":
+        width = diagnostics["track_start_bin_width_cm"]
+        width_token = f"{width:g}".replace(".", "p")
+        summary_lines = [
+            "All-particle uniform-bin comparison summary",
+            "===========================================",
+            "",
+            "Midpoint assignment:",
+            "  Every positive-energy Geant4 step is kept whole.",
+            "  Every step is assigned from its distance-from-track-start midpoint.",
+            f"  Uniform track-start bin width: {width:g} cm",
+            "  No endpoint transition or special endpoint algorithm is used.",
+            "  dE/dx = summed deposited energy / summed G4 step length.",
+            "  Residual range is track length minus the path-weighted bin midpoint.",
+            "",
+            "Input and output:",
+            f"  Positive-energy G4 steps: {diagnostics['input_step_count']}",
+            f"  Output track-bin measurements: {diagnostics['output_track_bin_count']}",
+            "",
+            "Accounting checks:",
+            f"  Input energy: {diagnostics['input_energy_MeV']:.12g} MeV",
+            f"  Grouped energy: {diagnostics['grouped_energy_MeV']:.12g} MeV",
+            f"  Energy difference: {diagnostics['energy_difference_MeV']:.12g} MeV",
+            f"  Input path length: {diagnostics['input_path_cm']:.12g} cm",
+            f"  Grouped path length: {diagnostics['grouped_path_cm']:.12g} cm",
+            f"  Path-length difference: {diagnostics['path_difference_cm']:.12g} cm",
+            "",
+            "Purpose:",
+            "  This is a comparison product for judging whether uniform fine bins",
+            "  add useful structure or primarily expose individual G4-step noise.",
+            "  Bethe-Bloch predictions remain black dashed lines outside legends.",
+        ]
+        (output_dir / f"dEdx_analysis_summary_fixed_{width_token}cm.txt").write_text(
+            "\n".join(summary_lines) + "\n"
+        )
+        return
+
+    # Count the output rows produced by each half of the hybrid algorithm.
+    region_counts = binned["binning_region"].value_counts()
+
+    # Assemble the explanation as explicit lines so the generated text file is
+    # readable without opening either the Python source or diagnostics CSV.
+    summary_lines = [
+        "All-particle dE/dx analysis summary",
+        "==================================",
+        "",
+        "Input and output:",
+        f"  Positive-energy G4 steps: {diagnostics['input_step_count']}",
+        f"  Output track-bin measurements: {diagnostics['output_track_bin_count']}",
+        f"  Endpoint measurements: {int(region_counts.get('endpoint_residual_midpoint', 0))}",
+        f"  Upper-track measurements: {int(region_counts.get('legacy_track_start_midpoint', 0))}",
+        "",
+        "Midpoint assignment:",
+        "  Every positive-energy Geant4 step is kept whole.",
+        "  Each step is assigned to exactly one bin from its midpoint.",
+        "  No step is split and no energy is redistributed between bins.",
+        "  dE/dx = summed deposited energy / summed G4 step length.",
+        "  The plotted x coordinate is the path-weighted step-midpoint range.",
+        "",
+        "Hybrid bins:",
+        f"  Endpoint region: 0 to {diagnostics['endpoint_max_cm']:g} cm residual range",
+        f"  Endpoint bin width: {diagnostics['endpoint_bin_width_cm']:g} cm",
+        f"  Number of endpoint bins: {diagnostics['endpoint_bin_count']}",
+        f"  Above transition: {diagnostics['track_start_bin_width_cm']:g} cm bins from each track start",
+        "  A midpoint exactly at the transition belongs to the upper region.",
+        "",
+        "Accounting checks:",
+        f"  Input energy: {diagnostics['input_energy_MeV']:.12g} MeV",
+        f"  Grouped energy: {diagnostics['grouped_energy_MeV']:.12g} MeV",
+        f"  Energy difference: {diagnostics['energy_difference_MeV']:.12g} MeV",
+        f"  Input path length: {diagnostics['input_path_cm']:.12g} cm",
+        f"  Grouped path length: {diagnostics['grouped_path_cm']:.12g} cm",
+        f"  Path-length difference: {diagnostics['path_difference_cm']:.12g} cm",
+        "",
+        "Saved tables:",
+        "  dEdx_binned_segments_hybrid_midpoint_*.csv contains event, track,",
+        "  PDG, energy, complete-step path, source-step count, weighted residual",
+        "  range, dE/dx, nominal width, path fraction, and binning region.",
+        "  dEdx_binning_diagnostics_hybrid_midpoint_*.csv contains the complete",
+        "  midpoint configuration and energy/path accounting totals.",
+        "",
+        "Plot convention:",
+        "  Simulated particle species retain their colored markers.",
+        "  Bethe-Bloch predictions are black dashed lines and are not in legends.",
+    ]
+
+    # Replace the previous run's summary so it always matches current outputs.
+    (output_dir / "dEdx_analysis_summary.txt").write_text(
+        "\n".join(summary_lines) + "\n"
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(
         description=(
@@ -492,9 +548,9 @@ def main():
     )
     parser.add_argument(
         "--binning",
-        choices=("adaptive", "fixed"),
-        default="adaptive",
-        help="Residual-range binning mode. Default: adaptive.",
+        choices=("hybrid", "fixed"),
+        default="hybrid",
+        help="Use fine endpoint bins plus legacy track bins, or legacy fixed bins everywhere.",
     )
     parser.add_argument(
         "--bin-width-cm",
@@ -502,36 +558,40 @@ def main():
         default=DEFAULT_BIN_WIDTH_CM,
         help=f"Track-length bin width in cm. Default: {DEFAULT_BIN_WIDTH_CM:g}.",
     )
-    parser.add_argument("--min-bin-width-cm", type=float, default=DEFAULT_MIN_BIN_WIDTH_CM)
-    parser.add_argument("--max-bin-width-cm", type=float, default=DEFAULT_MAX_BIN_WIDTH_CM)
     parser.add_argument(
-        "--fractional-bin-width", type=float, default=DEFAULT_FRACTIONAL_BIN_WIDTH
+        "--endpoint-bin-width-cm",
+        type=float,
+        default=DEFAULT_ENDPOINT_BIN_WIDTH_CM,
+        help=f"Residual-range bin width below the endpoint transition. Default: {DEFAULT_ENDPOINT_BIN_WIDTH_CM:g} cm.",
     )
     parser.add_argument(
-        "--adaptive-start-cm", type=float, default=DEFAULT_ADAPTIVE_START_CM
+        "--endpoint-max-cm",
+        type=float,
+        default=DEFAULT_ENDPOINT_MAX_CM,
+        help=f"Upper residual-range boundary of fine endpoint bins. Default: {DEFAULT_ENDPOINT_MAX_CM:g} cm.",
     )
     args = parser.parse_args()
 
     g4_path = find_g4_output(args.input_path)
     g4_hits = read_g4_hits(g4_path)
     number_events = event_count_from_last_row(g4_hits)
-    binned = make_binned_dedx(
+    binned, diagnostics = make_binned_dedx(
         g4_hits,
         args.bin_width_cm,
         binning=args.binning,
-        min_bin_width_cm=args.min_bin_width_cm,
-        max_bin_width_cm=args.max_bin_width_cm,
-        fractional_bin_width=args.fractional_bin_width,
-        adaptive_start_cm=args.adaptive_start_cm,
+        endpoint_bin_width_cm=args.endpoint_bin_width_cm,
+        endpoint_max_cm=args.endpoint_max_cm,
     )
-    if args.binning == "adaptive":
+    if args.binning == "hybrid":
         binning_label = (
-            f"Adaptive bins below {args.adaptive_start_cm:g} cm"
+            f"{args.endpoint_bin_width_cm:g} cm midpoint bins below "
+            f"{args.endpoint_max_cm:g} cm"
         )
-        file_suffix = "_adaptive"
+        file_suffix = "_hybrid_midpoint"
     else:
         binning_label = f"Fixed bin width: {args.bin_width_cm:g} cm"
-        file_suffix = ""
+        width_token = f"{args.bin_width_cm:g}".replace(".", "p")
+        file_suffix = f"_fixed_{width_token}cm"
 
     output_dir = SCRIPT_DIR / "dEdx" / f"kaon_decay_{number_events}_events"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -555,6 +615,7 @@ def main():
         / f"all_particles_dEdx_vs_residual_range_xmax10cm_ymax40MeVcm{file_suffix}_{number_events}_events.png"
     )
     binned_csv = output_dir / f"dEdx_binned_segments{file_suffix}_{number_events}_events.csv"
+    diagnostics_csv = output_dir / f"dEdx_binning_diagnostics{file_suffix}_{number_events}_events.csv"
 
     plot_kaons_with_bethe(binned, kaon_plot, number_events, binning_label)
     plot_all_particles(binned, all_plot, number_events, binning_label)
@@ -593,6 +654,8 @@ def main():
         theory_lines=True,
     )
     binned.to_csv(binned_csv, index=False)
+    pd.DataFrame([diagnostics]).to_csv(diagnostics_csv, index=False)
+    write_analysis_summary(output_dir, binned, diagnostics)
 
     print(f"Read: {g4_path}")
     print(f"Number of events: {number_events}")
@@ -605,6 +668,8 @@ def main():
     print(f"Saved all-particles 40 cm plot: {all_zoom_plot}")
     print(f"Saved all-particles 10 cm, 40 MeV/cm plot: {all_zoom_linear_plot}")
     print(f"Saved binned segment table: {binned_csv}")
+    print(f"Saved accounting diagnostics: {diagnostics_csv}")
+    print(f"Saved analysis summary: {output_dir / 'dEdx_analysis_summary.txt'}")
 
 
 if __name__ == "__main__":

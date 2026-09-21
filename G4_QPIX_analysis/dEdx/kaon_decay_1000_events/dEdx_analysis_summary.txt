@@ -1,0 +1,41 @@
+All-particle dE/dx analysis summary
+==================================
+
+Input and output:
+  Positive-energy G4 steps: 1914006
+  Output track-bin measurements: 643560
+  Endpoint measurements: 571033
+  Upper-track measurements: 72527
+
+Midpoint assignment:
+  Every positive-energy Geant4 step is kept whole.
+  Each step is assigned to exactly one bin from its midpoint.
+  No step is split and no energy is redistributed between bins.
+  dE/dx = summed deposited energy / summed G4 step length.
+  The plotted x coordinate is the path-weighted step-midpoint range.
+
+Hybrid bins:
+  Endpoint region: 0 to 1 cm residual range
+  Endpoint bin width: 0.05 cm
+  Number of endpoint bins: 20
+  Above transition: 1 cm bins from each track start
+  A midpoint exactly at the transition belongs to the upper region.
+
+Accounting checks:
+  Input energy: 356504.078864 MeV
+  Grouped energy: 356504.078864 MeV
+  Energy difference: 5.82076609135e-11 MeV
+  Input path length: 109438.470794 cm
+  Grouped path length: 109438.470794 cm
+  Path-length difference: -1.45519152284e-11 cm
+
+Saved tables:
+  dEdx_binned_segments_hybrid_midpoint_*.csv contains event, track,
+  PDG, energy, complete-step path, source-step count, weighted residual
+  range, dE/dx, nominal width, path fraction, and binning region.
+  dEdx_binning_diagnostics_hybrid_midpoint_*.csv contains the complete
+  midpoint configuration and energy/path accounting totals.
+
+Plot convention:
+  Simulated particle species retain their colored markers.
+  Bethe-Bloch predictions are black dashed lines and are not in legends.
