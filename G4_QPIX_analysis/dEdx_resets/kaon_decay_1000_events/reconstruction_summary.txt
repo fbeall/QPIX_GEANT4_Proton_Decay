@@ -4,9 +4,9 @@ metadata ROOT: /Users/fb_local/Programs/Q_PIX_GEANT4/qpixrtd_output/proton_decay
 events: 1000
 reset rows: 1011995
 truth-weighted reset contributions: 2168861
-reconstructed tracks: 79627
-reconstructed segments: 215588
-primary-kaon tracks: 997
+reconstructed tracks: 91982
+reconstructed segments: 399484
+primary-kaon tracks: 1000
 pixel size [cm]: 0.4
 drift velocity [cm/s]: 164800.0
 reset threshold [electrons]: 6250

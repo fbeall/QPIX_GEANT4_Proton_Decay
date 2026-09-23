@@ -573,10 +573,11 @@ def main():
     number_events = int(contributions["event"].max()) + 1
     output_dir = SCRIPT_DIR / "dEdx_resets" / f"kaon_decay_{number_events}_events"
     output_dir.mkdir(parents=True, exist_ok=True)
-    primary_plot = output_dir / f"primary_kaons_resets_dEdx_vs_residual_range_{number_events}_events.png"
-    primary_zoom_plot = output_dir / f"primary_kaons_resets_dEdx_vs_residual_range_xmax10cm_ymax40MeVcm_{number_events}_events.png"
-    all_plot = output_dir / f"all_particles_resets_dEdx_vs_residual_range_{number_events}_events.png"
-    all_zoom_plot = output_dir / f"all_particles_resets_dEdx_vs_residual_range_xmax10cm_ymax40MeVcm_{number_events}_events.png"
+    bin_width_tag = f"binwidth{args.bin_width_cm:g}cm".replace(".", "p")
+    primary_plot = output_dir / f"primary_kaons_resets_dEdx_vs_residual_range_{number_events}_events_{bin_width_tag}.png"
+    primary_zoom_plot = output_dir / f"primary_kaons_resets_dEdx_vs_residual_range_xmax10cm_ymax40MeVcm_{number_events}_events_{bin_width_tag}.png"
+    all_plot = output_dir / f"all_particles_resets_dEdx_vs_residual_range_{number_events}_events_{bin_width_tag}.png"
+    all_zoom_plot = output_dir / f"all_particles_resets_dEdx_vs_residual_range_xmax10cm_ymax40MeVcm_{number_events}_events_{bin_width_tag}.png"
     binned_csv = output_dir / f"resets_dEdx_binned_segments_{number_events}_events.csv"
     summary_path = output_dir / "reconstruction_summary.txt"
 
