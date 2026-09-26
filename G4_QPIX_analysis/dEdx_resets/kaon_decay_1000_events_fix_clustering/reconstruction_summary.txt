@@ -1,0 +1,18 @@
+resets_output: /Users/fb_local/Programs/Q_PIX_GEANT4/qpixrtd_output/proton_decay_argon_1k_events_RTD_2026-09-03_153336/resets_output.txt
+particles_output: /Users/fb_local/Programs/Q_PIX_GEANT4/qpixrtd_output/proton_decay_argon_1k_events_RTD_2026-09-03_153336/particles_output.txt
+metadata ROOT: /Users/fb_local/Programs/Q_PIX_GEANT4/qpixrtd_output/proton_decay_argon_1k_events_RTD.root
+events: 1000
+reset rows: 1011995
+truth-weighted reset contributions: 2168861
+reconstructed tracks: 91982
+reconstructed segments: 323530
+primary-kaon tracks: 1000
+pixel size [cm]: 0.4
+drift velocity [cm/s]: 164800.0
+reset threshold [electrons]: 6250
+charge loss enabled: False
+recombination enabled: True
+track model: charge-weighted PCA axis through individual reset points
+nominal bin width [cm]: 0.5
+bin alignment: forward from the fitted track start
+endpoint treatment: merge the remainder into the preceding full bin
