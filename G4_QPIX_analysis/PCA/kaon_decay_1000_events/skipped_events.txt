@@ -1,0 +1,13 @@
+event 25: At least three G4 steps are required for a 3D PCA.
+event 56: At least three G4 steps are required for a 3D PCA.
+event 116: At least three G4 steps are required for a 3D PCA.
+event 224: At least three G4 steps are required for a 3D PCA.
+event 265: At least three G4 steps are required for a 3D PCA.
+event 344: At least three G4 steps are required for a 3D PCA.
+event 382: At least three G4 steps are required for a 3D PCA.
+event 481: At least three G4 steps are required for a 3D PCA.
+event 592: At least three G4 steps are required for a 3D PCA.
+event 646: At least three G4 steps are required for a 3D PCA.
+event 651: At least three G4 steps are required for a 3D PCA.
+event 934: At least three G4 steps are required for a 3D PCA.
+event 957: At least three G4 steps are required for a 3D PCA.

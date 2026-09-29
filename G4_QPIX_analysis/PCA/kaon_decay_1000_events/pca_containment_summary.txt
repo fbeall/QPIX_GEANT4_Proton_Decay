@@ -1,0 +1,22 @@
+Primary K+ PCA containment summary
+===================================
+
+Input directory: /Users/fb_local/Programs/Q_PIX_GEANT4/qpixrtd_output/proton_decay_argon_1k_events_RTD_2026-09-03_153336
+Tracks analyzed: 987
+PCA box energy-quantile target: 98%
+
+Energy outside PC1-PC2 box:
+  Mean: 8.31558%
+  Median: 6.96934%
+  Standard deviation: 7.98605%
+  Minimum: 1.00136%
+  Maximum: 70.1927%
+  90th percentile: 11.4634%
+
+Method:
+  Only particle-table K+ rows with parent_track_id == 0 are selected.
+  G4 truth steps are matched by event number and ParticleID because track IDs restart each event.
+  PCA is run on G4 step midpoints in detector x/y/z coordinates.
+  Each midpoint is weighted by the G4 step deposited energy.
+  The PC1-PC2 box is the central weighted quantile interval along PC1 and PC2.
+  Energy outside the box is the sum of K+ step energy whose PC1 or PC2 coordinate lies outside that interval.
