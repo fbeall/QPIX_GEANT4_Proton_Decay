@@ -415,6 +415,21 @@ def set_axes_equal(ax):
     ax.set_zlim3d(centers[2] - radius, centers[2] + radius)
 
 
+def classify_kaon_decay(particle):
+    """Classify a decay-flagged kaon using its endpoint kinetic energy."""
+    decay_flag = int(particle["particle_decay_flag"])
+    final_kinetic_energy = float(particle["particle_final_kinetic_energy"])
+
+    # Follow the convention used by kaon_decay_energy_hist.py in this analysis:
+    # zero endpoint kinetic energy means decay at rest; positive energy means
+    # the kaon was still moving when it decayed.
+    if decay_flag != 1:
+        return "No decay recorded"
+    if np.isclose(final_kinetic_energy, 0.0, atol=1.0e-9):
+        return "Decay at rest"
+    return "Decay in flight"
+
+
 def save_event_display(event_id, track_id, result, particle, output_path, containment_quantile):
     """Save a 3D event display for one primary K+ track and its PCA box."""
     steps = result["steps"].sort_values("ti", kind="mergesort")
@@ -465,9 +480,9 @@ def save_event_display(event_id, track_id, result, particle, output_path, contai
     )
 
     # Draw the PCA box outline in the PC1-PC2 plane.
-    collection = Line3DCollection(rectangle_segments, colors="black", linewidths=2.0)
+    collection = Line3DCollection(rectangle_segments, colors="black", linewidths=0.5)
     ax.add_collection3d(collection)
-    ax.plot([], [], [], color="black", linewidth=2.0, label="PCA PC1-PC2 box")
+    ax.plot([], [], [], color="black", linewidth=0.5, label="PCA PC1-PC2 box")
 
     # Mark the particle-table start and end points for orientation.
     ax.scatter(
@@ -502,9 +517,13 @@ def save_event_display(event_id, track_id, result, particle, output_path, contai
     colorbar = fig.colorbar(scatter, ax=ax, shrink=0.74, pad=0.08)
     colorbar.set_label("G4 step deposited energy [MeV]")
 
+    decay_mode = classify_kaon_decay(particle)
+    final_kinetic_energy = float(particle["particle_final_kinetic_energy"])
     legend_text = (
         f"Outside energy: {result['outside_percent']:.2f}%\n"
         f"Outside / total: {result['outside_energy_MeV']:.3g} / {result['total_energy_MeV']:.3g} MeV\n"
+        f"Decay mode: {decay_mode}\n"
+        f"Final K+ kinetic energy: {final_kinetic_energy:.4g} MeV\n"
         f"Track length: {result['track_length_cm']:.2f} cm\n"
         f"PC1 + PC2 variance: {100.0 * np.sum(result['explained'][:2]):.2f}%\n"
         f"Box containment target: {100.0 * containment_quantile:.1f}%"
@@ -713,12 +732,15 @@ def run_analysis(args):
     input_dir = Path(args.input_dir).expanduser().resolve()
     output_dir = Path(args.output_dir).expanduser().resolve()
     event_display_dir = output_dir / "event_displays"
+    high_outside_display_dir = output_dir / "highest_outside_energy_event_displays"
 
     # Create the requested output directories if they do not already exist.
     output_dir.mkdir(parents=True, exist_ok=True)
     event_display_dir.mkdir(parents=True, exist_ok=True)
+    high_outside_display_dir.mkdir(parents=True, exist_ok=True)
 
     rows = []
+    display_records = []
     saved_event_displays = 0
     skipped_events = []
 
@@ -732,6 +754,7 @@ def run_analysis(args):
                 continue
 
             result = analyze_primary_kaon_track(kaon_steps, args.containment_quantile)
+            decay_mode = classify_kaon_decay(particle)
 
             rows.append(
                 {
@@ -754,6 +777,18 @@ def run_analysis(args):
                     "particle_initial_energy_MeV": float(particle["particle_initial_energy"]),
                     "particle_final_kinetic_energy_MeV": float(particle["particle_final_kinetic_energy"]),
                     "particle_decay_flag": int(particle["particle_decay_flag"]),
+                    "decay_mode": decay_mode,
+                }
+            )
+
+            # Retain the compact primary-K+ result so the largest-leakage tracks
+            # can be ranked only after every event has been analyzed.
+            display_records.append(
+                {
+                    "event_id": event_id,
+                    "track_id": track_id,
+                    "result": result,
+                    "particle": particle.copy(),
                 }
             )
 
@@ -778,6 +813,30 @@ def run_analysis(args):
     summary = pd.DataFrame(rows).sort_values(["event", "track_id"]).reset_index(drop=True)
     summary_path = output_dir / "kaon_pca_track_summary.csv"
     summary.to_csv(summary_path, index=False)
+
+    # Sort all successful tracks by outside-energy percentage and save a second
+    # display set focused on the most extreme PCA-box leakage behavior.
+    ranked_records = sorted(
+        display_records,
+        key=lambda record: record["result"]["outside_percent"],
+        reverse=True,
+    )
+    for rank, record in enumerate(
+        ranked_records[: args.highest_outside_event_displays],
+        start=1,
+    ):
+        display_path = high_outside_display_dir / (
+            f"rank_{rank:02d}_event_{record['event_id']:04d}_"
+            f"track_{record['track_id']}_pca_box.png"
+        )
+        save_event_display(
+            event_id=record["event_id"],
+            track_id=record["track_id"],
+            result=record["result"],
+            particle=record["particle"],
+            output_path=display_path,
+            containment_quantile=args.containment_quantile,
+        )
 
     if skipped_events:
         skipped_path = output_dir / "skipped_events.txt"
@@ -827,6 +886,12 @@ def build_parser():
         type=int,
         default=10,
         help="Number of first successfully analyzed primary-K+ tracks to draw.",
+    )
+    parser.add_argument(
+        "--highest-outside-event-displays",
+        type=int,
+        default=10,
+        help="Number of largest outside-energy-percent primary-K+ tracks to draw.",
     )
     parser.add_argument(
         "--max-events",
