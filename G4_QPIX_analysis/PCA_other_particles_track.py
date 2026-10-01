@@ -42,6 +42,7 @@ CATEGORY_INFO = {
     "muon_plus": {"label": "Muon+", "pdg": -13, "other": True},
     "muon_minus": {"label": "Muon-", "pdg": 13, "other": True},
     "electron": {"label": "Electron", "pdg": 11, "other": True},
+    "electron_showers": {"label": "Electron shower", "pdg": 11, "other": True},
     "positron": {"label": "Positron", "pdg": -11, "other": True},
     "pion_plus": {"label": "Pion+", "pdg": 211, "other": True},
     "pion_minus": {"label": "Pion-", "pdg": -211, "other": True},
@@ -110,6 +111,7 @@ def read_particle_table(path):
     ]
     inventory = Counter()
     selected_chunks = []
+    genealogy_chunks = []
 
     for chunk in pd.read_csv(path, usecols=columns, chunksize=200_000):
         for column in columns:
@@ -117,6 +119,16 @@ def read_particle_table(path):
         chunk = chunk.dropna(subset=columns)
         chunk["particle_pdg_code"] = chunk["particle_pdg_code"].astype(int)
         inventory.update(chunk["particle_pdg_code"])
+        genealogy_chunks.append(
+            chunk[
+                [
+                    "event",
+                    "particle_track_id",
+                    "particle_parent_track_id",
+                    "particle_pdg_code",
+                ]
+            ].copy()
+        )
         selected = chunk[chunk["particle_pdg_code"].isin(ANALYZED_PDGS)].copy()
         if not selected.empty:
             selected_chunks.append(selected)
@@ -131,13 +143,55 @@ def read_particle_table(path):
     ]:
         particles[column] = particles[column].astype(int)
     particles = particles.drop_duplicates(["event", "particle_track_id"], keep="first")
-    return particles, inventory
+    genealogy = pd.concat(genealogy_chunks, ignore_index=True)
+    for column in genealogy.columns:
+        genealogy[column] = genealogy[column].astype(int)
+    genealogy = genealogy.drop_duplicates(["event", "particle_track_id"], keep="first")
+    return particles, genealogy, inventory
 
 
-def read_g4_steps(path):
-    """Stream all positive-energy G4 steps for the charged PCA categories."""
+def build_electron_shower_membership(genealogy):
+    """Assign each electron-descended particle to its earliest electron ancestor."""
+    membership_rows = []
+
+    # Geant4 creates a parent before its daughters, so sorting by track ID lets
+    # each child inherit an already-known electron-shower root from its parent.
+    for event_id, event_particles in genealogy.groupby("event", sort=True):
+        root_by_track = {}
+        event_particles = event_particles.sort_values("particle_track_id")
+        for particle in event_particles.itertuples(index=False):
+            track_id = int(particle.particle_track_id)
+            parent_id = int(particle.particle_parent_track_id)
+            pdg = int(particle.particle_pdg_code)
+
+            inherited_root = root_by_track.get(parent_id)
+            if inherited_root is not None:
+                # Every descendant stays attached to the first electron in its
+                # ancestry, even when the daughter is another electron.
+                root_by_track[track_id] = inherited_root
+            elif pdg == 11:
+                # An electron with no earlier electron ancestor starts a new,
+                # non-overlapping truth shower.
+                root_by_track[track_id] = track_id
+
+        membership_rows.extend(
+            (int(event_id), track_id, root_track_id)
+            for track_id, root_track_id in root_by_track.items()
+        )
+
+    return pd.DataFrame(
+        membership_rows,
+        columns=["event", "ParticleID", "electron_shower_root_track_id"],
+    )
+
+
+def read_g4_steps(path, shower_membership):
+    """Stream charged tracks plus all deposits descended from electron roots."""
     columns = ["event", "xi", "xf", "yi", "yf", "zi", "zf", "ti", "tf", "E", "ParticleID", "PDG"]
     selected_chunks = []
+    shower_root_lookup = shower_membership.set_index(
+        ["event", "ParticleID"]
+    )["electron_shower_root_track_id"]
 
     for chunk in pd.read_csv(path, usecols=columns, chunksize=300_000):
         for column in columns:
@@ -145,7 +199,7 @@ def read_g4_steps(path):
         chunk = chunk.dropna(subset=columns)
         for column in ["event", "ParticleID", "PDG"]:
             chunk[column] = chunk[column].astype(int)
-        chunk = chunk[chunk["PDG"].isin(ANALYZED_PDGS) & chunk["E"].gt(0.0)].copy()
+        chunk = chunk[chunk["E"].gt(0.0)].copy()
 
         # Zero-length deposits cannot define a spatial PCA direction.
         positive_length = (
@@ -154,8 +208,19 @@ def read_g4_steps(path):
             + (chunk["zf"] - chunk["zi"]) ** 2
         ) > 0.0
         chunk = chunk[positive_length]
-        if not chunk.empty:
-            selected_chunks.append(chunk)
+        if chunk.empty:
+            continue
+
+        # Attach the earliest electron ancestor to every shower-descended step.
+        keys = pd.MultiIndex.from_arrays([chunk["event"], chunk["ParticleID"]])
+        chunk["electron_shower_root_track_id"] = shower_root_lookup.reindex(keys).to_numpy()
+
+        # Retain the union of ordinary charged tracks and complete electron
+        # shower descendants.  A descendant may have a neutral or ion PDG code.
+        keep = chunk["PDG"].isin(ANALYZED_PDGS) | chunk[
+            "electron_shower_root_track_id"
+        ].notna()
+        selected_chunks.append(chunk[keep].copy())
 
     return pd.concat(selected_chunks, ignore_index=True)
 
@@ -205,14 +270,31 @@ def save_event_display(record, output_path, containment_quantile):
             label=f"{label} deposits outside PCA box",
         )
 
-    ax.plot(
-        path_points[:, 0],
-        path_points[:, 1],
-        path_points[:, 2],
-        color="red",
-        linewidth=1.0,
-        label=f"{label} G4 path",
-    )
+    if category == "electron_showers":
+        # Draw each descendant trajectory separately.  Connecting all shower
+        # steps in global time order would create lines between unrelated
+        # branches and misrepresent the electromagnetic shower topology.
+        for _, branch in steps.groupby("ParticleID", sort=False):
+            branch = branch.sort_values("ti", kind="mergesort")
+            branch_points = branch[["x_cm", "y_cm", "z_cm"]].to_numpy(dtype=float)
+            ax.plot(
+                branch_points[:, 0],
+                branch_points[:, 1],
+                branch_points[:, 2],
+                color="red",
+                linewidth=0.65,
+                alpha=0.55,
+            )
+        ax.plot([], [], [], color="red", linewidth=0.65, label="Electron-shower G4 paths")
+    else:
+        ax.plot(
+            path_points[:, 0],
+            path_points[:, 1],
+            path_points[:, 2],
+            color="red",
+            linewidth=1.0,
+            label=f"{label} G4 path",
+        )
     box_lines = Line3DCollection(rectangle_segments, colors="black", linewidths=0.5)
     ax.add_collection3d(box_lines)
     ax.plot([], [], [], color="black", linewidth=0.5, label="PCA PC1-PC2 box")
@@ -457,7 +539,8 @@ def analyze_tracks(particles, g4_steps, containment_quantile, displays_per_parti
     highest_heaps = defaultdict(list)
     heap_sequence = 0
 
-    grouped = g4_steps.groupby(["event", "ParticleID", "PDG"], sort=True)
+    charged_steps = g4_steps[g4_steps["PDG"].isin(ANALYZED_PDGS)]
+    grouped = charged_steps.groupby(["event", "ParticleID", "PDG"], sort=True)
     total_groups = grouped.ngroups
     print(f"Analyzing {total_groups:,} charged G4 track group(s) ...")
 
@@ -534,6 +617,98 @@ def analyze_tracks(particles, g4_steps, containment_quantile, displays_per_parti
             elif heap_item[0] > heap[0][0]:
                 heapq.heapreplace(heap, heap_item)
 
+    # Analyze each complete electron shower as one object.  All G4 deposits
+    # carrying the same earliest-electron root are included, irrespective of
+    # the descendant particle's own PDG code.
+    shower_steps = g4_steps[g4_steps["electron_shower_root_track_id"].notna()].copy()
+    shower_steps["electron_shower_root_track_id"] = shower_steps[
+        "electron_shower_root_track_id"
+    ].astype(int)
+    shower_groups = shower_steps.groupby(
+        ["event", "electron_shower_root_track_id"],
+        sort=True,
+    )
+    total_showers = shower_groups.ngroups
+    print(f"Analyzing {total_showers:,} complete electron shower group(s) ...")
+
+    for shower_number, ((event_id, root_track_id), steps) in enumerate(
+        shower_groups,
+        start=1,
+    ):
+        if shower_number % 50_000 == 0:
+            print(f"  Processed {shower_number:,} / {total_showers:,} electron showers")
+        if len(steps) < 3:
+            skipped["electron shower: fewer than three nonzero-length G4 steps"] += 1
+            continue
+
+        key = (int(event_id), int(root_track_id))
+        if key not in particle_index.index:
+            skipped["electron shower: missing root-electron metadata"] += 1
+            continue
+        particle = particle_index.loc[key]
+        if isinstance(particle, pd.DataFrame):
+            particle = particle.iloc[0]
+
+        try:
+            result = analyze_primary_kaon_track(steps, containment_quantile)
+        except Exception as exc:
+            skipped[f"electron shower: {exc}"] += 1
+            continue
+
+        category = "electron_showers"
+        rows.append(
+            {
+                "event": int(event_id),
+                "track_id": int(root_track_id),
+                "particle_type": category,
+                "particle_label": CATEGORY_INFO[category]["label"],
+                "pdg": 11,
+                "parent_track_id": int(particle["particle_parent_track_id"]),
+                "n_g4_steps": len(result["steps"]),
+                "n_descendant_tracks": int(steps["ParticleID"].nunique()),
+                "total_energy_MeV": result["total_energy_MeV"],
+                "inside_energy_MeV": result["inside_energy_MeV"],
+                "outside_energy_MeV": result["outside_energy_MeV"],
+                "outside_percent": result["outside_percent"],
+                "track_length_cm": result["track_length_cm"],
+                "pc1_explained_variance": float(result["explained"][0]),
+                "pc2_explained_variance": float(result["explained"][1]),
+                "pc3_explained_variance": float(result["explained"][2]),
+                "pc1_pc2_explained_variance": float(np.sum(result["explained"][:2])),
+                "pc1_pc2_explained_variance_percent": float(
+                    100.0 * np.sum(result["explained"][:2])
+                ),
+                "pc1_low_cm": result["box"]["pc1_low"],
+                "pc1_high_cm": result["box"]["pc1_high"],
+                "pc2_low_cm": result["box"]["pc2_low"],
+                "pc2_high_cm": result["box"]["pc2_high"],
+                "particle_initial_energy_MeV": float(particle["particle_initial_energy"]),
+                "particle_final_kinetic_energy_MeV": float(
+                    particle["particle_final_kinetic_energy"]
+                ),
+                "particle_decay_flag": int(particle["particle_decay_flag"]),
+                "endpoint_status": endpoint_status(particle),
+            }
+        )
+
+        record = {
+            "event": int(event_id),
+            "track_id": int(root_track_id),
+            "particle_type": category,
+            "particle": particle.copy(),
+            "result": result,
+        }
+        if len(first_records[category]) < displays_per_particle:
+            first_records[category].append(record)
+        if displays_per_particle > 0:
+            heap = highest_heaps[category]
+            heap_item = (result["outside_percent"], heap_sequence, record)
+            heap_sequence += 1
+            if len(heap) < displays_per_particle:
+                heapq.heappush(heap, heap_item)
+            elif heap_item[0] > heap[0][0]:
+                heapq.heapreplace(heap, heap_item)
+
     summary = pd.DataFrame(rows).sort_values(["particle_type", "event", "track_id"]).reset_index(drop=True)
     return summary, skipped, first_records, highest_heaps
 
@@ -544,9 +719,11 @@ def write_outputs(summary, skipped, first_records, highest_heaps, inventory, arg
     other_root = event_set_dir / "other_particles"
     display_root = other_root / "event_displays"
     combined_root = event_set_dir / "combined"
+    kaon_electron_shower_root = event_set_dir / "kaon_e-_showers"
     other_root.mkdir(parents=True, exist_ok=True)
     display_root.mkdir(parents=True, exist_ok=True)
     combined_root.mkdir(parents=True, exist_ok=True)
+    kaon_electron_shower_root.mkdir(parents=True, exist_ok=True)
 
     for category, info in CATEGORY_INFO.items():
         if not info["other"]:
@@ -618,6 +795,34 @@ def write_outputs(summary, skipped, first_records, highest_heaps, inventory, arg
         "\n".join(combined_lines) + "\n"
     )
 
+    # Save a focused primary-K+ versus complete-electron-shower comparison.
+    kaon_electron_summary = summary[
+        summary["particle_type"].isin(["primary_k_plus", "electron_showers"])
+    ].copy()
+    kaon_electron_summary.to_csv(
+        kaon_electron_shower_root / "pca_track_summary_kaon_electron_showers.csv",
+        index=False,
+    )
+    plot_combined(kaon_electron_summary, kaon_electron_shower_root)
+    focused_lines = [
+        "Primary K+ and electron-shower PCA summary",
+        "==========================================",
+        "",
+        f"PCA box energy-quantile target: {100.0 * args.containment_quantile:.3g}%",
+        "",
+    ]
+    for category in ["primary_k_plus", "electron_showers"]:
+        data = kaon_electron_summary[
+            kaon_electron_summary["particle_type"].eq(category)
+        ]["outside_percent"]
+        focused_lines.append(
+            f"{CATEGORY_INFO[category]['label']}: {len(data)} objects, "
+            f"mean outside {data.mean():.6g}%, median {data.median():.6g}%"
+        )
+    (kaon_electron_shower_root / "pca_containment_summary_kaon_electron_showers.txt").write_text(
+        "\n".join(focused_lines) + "\n"
+    )
+
 
 def run(args):
     """Load the aggregate truth files, run every track PCA, and save outputs."""
@@ -628,9 +833,11 @@ def run(args):
         raise FileNotFoundError("Expected particles_output.txt and g4_output.txt in --input-dir")
 
     print(f"Reading particle metadata from {particle_path.name} ...")
-    particles, inventory = read_particle_table(particle_path)
-    print(f"Reading charged-particle G4 steps from {g4_path.name} ...")
-    g4_steps = read_g4_steps(g4_path)
+    particles, genealogy, inventory = read_particle_table(particle_path)
+    print("Building non-overlapping electron-shower ancestry groups ...")
+    shower_membership = build_electron_shower_membership(genealogy)
+    print(f"Reading charged-particle and electron-shower G4 steps from {g4_path.name} ...")
+    g4_steps = read_g4_steps(g4_path, shower_membership)
     summary, skipped, first_records, highest_heaps = analyze_tracks(
         particles,
         g4_steps,
@@ -643,6 +850,10 @@ def run(args):
     print(f"Analyzed {len(summary):,} tracks across {summary['particle_type'].nunique()} categories.")
     print(f"Saved other-particle outputs under: {Path(args.output_event_set_dir).resolve() / 'other_particles'}")
     print(f"Saved combined outputs under: {Path(args.output_event_set_dir).resolve() / 'combined'}")
+    print(
+        "Saved primary-K+ versus electron-shower outputs under: "
+        f"{Path(args.output_event_set_dir).resolve() / 'kaon_e-_showers'}"
+    )
 
 
 def build_parser():

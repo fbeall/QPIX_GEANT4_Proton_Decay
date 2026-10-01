@@ -1,0 +1,7 @@
+Primary K+ and electron-shower PCA summary
+==========================================
+
+PCA box energy-quantile target: 98%
+
+Primary K+: 987 objects, mean outside 8.31558%, median 6.96934%
+Electron shower: 101037 objects, mean outside 22.39%, median 15.8399%

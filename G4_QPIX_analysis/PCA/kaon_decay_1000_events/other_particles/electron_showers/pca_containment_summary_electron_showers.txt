@@ -1,0 +1,17 @@
+Electron shower PCA containment summary
+=======================================
+
+Tracks analyzed: 101037
+PCA box energy-quantile target: 98%
+Mean outside energy: 22.39%
+Median outside energy: 15.8399%
+Standard deviation: 20.1897%
+Minimum: 1.00359%
+Maximum: 98.3859%
+90th percentile: 50.2962%
+
+Method:
+  PCA uses positive-energy G4 step midpoints weighted by deposited energy.
+  The box is the central weighted interval along PC1 and PC2.
+  Outside energy is summed where either PC1 or PC2 lies outside its interval.
+  At least three nonzero-length G4 steps are required per track.
