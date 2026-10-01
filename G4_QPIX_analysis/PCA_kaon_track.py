@@ -560,6 +560,7 @@ def plot_outside_energy_histogram(summary, output_path):
         0.96,
         "\n".join(
             [
+                "Bin width: 1%",
                 f"Tracks: {len(values)}",
                 f"Mean: {np.mean(values):.2f}%",
                 f"Median: {np.median(values):.2f}%",
@@ -633,6 +634,15 @@ def plot_diagnostic_scatters(summary, output_dir):
     ax.set_title("Primary K+ PCA explained variance")
     ax.legend(framealpha=0.9)
     ax.grid(True, axis="y", alpha=0.25)
+    ax.text(
+        0.02,
+        0.96,
+        "Bin width: 2%",
+        transform=ax.transAxes,
+        ha="left",
+        va="top",
+        bbox={"facecolor": "white", "alpha": 0.86, "edgecolor": "0.6"},
+    )
     fig.tight_layout()
     fig.savefig(output_dir / "pca_explained_variance_hist.png", dpi=220)
     plt.close(fig)

@@ -1,0 +1,17 @@
+Proton PCA containment summary
+==============================
+
+Tracks analyzed: 653
+PCA box energy-quantile target: 98%
+Mean outside energy: 15.7614%
+Median outside energy: 10.1098%
+Standard deviation: 15.941%
+Minimum: 1.09851%
+Maximum: 100%
+90th percentile: 36.3588%
+
+Method:
+  PCA uses positive-energy G4 step midpoints weighted by deposited energy.
+  The box is the central weighted interval along PC1 and PC2.
+  Outside energy is summed where either PC1 or PC2 lies outside its interval.
+  At least three nonzero-length G4 steps are required per track.

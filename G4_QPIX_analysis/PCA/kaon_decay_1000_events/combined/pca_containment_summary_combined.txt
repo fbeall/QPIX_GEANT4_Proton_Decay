@@ -1,0 +1,16 @@
+Combined particle PCA containment summary
+=========================================
+
+Total tracks analyzed: 154810
+PCA box energy-quantile target: 98%
+
+Analyzed tracks by category:
+  Electron: 148129 tracks, mean outside 23.2543%, median 16.5445%
+  Muon-: 1 tracks, mean outside 12.922%, median 12.922%
+  Muon+: 959 tracks, mean outside 8.52284%, median 6.62982%
+  Pion-: 69 tracks, mean outside 8.78127%, median 7.71572%
+  Pion+: 372 tracks, mean outside 10.4231%, median 7.06552%
+  Positron: 3600 tracks, mean outside 12.1144%, median 10.3169%
+  Primary K+: 987 tracks, mean outside 8.31558%, median 6.96934%
+  Proton: 653 tracks, mean outside 15.7614%, median 10.1098%
+  Secondary K+: 40 tracks, mean outside 19.4883%, median 9.94655%

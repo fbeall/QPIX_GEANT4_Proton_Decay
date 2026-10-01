@@ -1,0 +1,17 @@
+Muon+ PCA containment summary
+=============================
+
+Tracks analyzed: 959
+PCA box energy-quantile target: 98%
+Mean outside energy: 8.52284%
+Median outside energy: 6.62982%
+Standard deviation: 5.94326%
+Minimum: 1.00152%
+Maximum: 26.8936%
+90th percentile: 18.226%
+
+Method:
+  PCA uses positive-energy G4 step midpoints weighted by deposited energy.
+  The box is the central weighted interval along PC1 and PC2.
+  Outside energy is summed where either PC1 or PC2 lies outside its interval.
+  At least three nonzero-length G4 steps are required per track.

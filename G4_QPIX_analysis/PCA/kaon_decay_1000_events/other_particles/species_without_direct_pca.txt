@@ -1,0 +1,14 @@
+Particle-table species without direct PCA tracks
+===============================================
+
+Neutral particles generally leave no direct positive-energy G4 steps in this output.
+Their charged daughters and secondary tracks are included in the charged-particle categories.
+Nuclear-ion PDG codes and neutrinos are intentionally excluded.
+
+PDG, particle, particle-table rows
+22, Photon, 57531
+111, Pion0, 336
+130, K0-long, 5
+310, K0-short, 7
+-321, K-, 0
+2112, Neutron, 3336

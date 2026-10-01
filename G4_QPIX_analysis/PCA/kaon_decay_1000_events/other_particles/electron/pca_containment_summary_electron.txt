@@ -1,0 +1,17 @@
+Electron PCA containment summary
+================================
+
+Tracks analyzed: 148129
+PCA box energy-quantile target: 98%
+Mean outside energy: 23.2543%
+Median outside energy: 16.5445%
+Standard deviation: 20.5754%
+Minimum: 1.00545%
+Maximum: 98.4054%
+90th percentile: 52.1724%
+
+Method:
+  PCA uses positive-energy G4 step midpoints weighted by deposited energy.
+  The box is the central weighted interval along PC1 and PC2.
+  Outside energy is summed where either PC1 or PC2 lies outside its interval.
+  At least three nonzero-length G4 steps are required per track.
