@@ -1,0 +1,37 @@
+PCA electron-shower rejection analysis
+======================================
+
+Input directory: /Users/fb_local/Programs/Q_PIX_GEANT4/qpixrtd_output/proton_decay_argon_1k_events_RTD_2026-09-03_153336
+Minimum nonzero-length spatial points: 10
+Q-Pix x/y pitch used for pixelization: 0.4 cm
+Q-Pix caveat: this scenario snaps truth midpoints to x/y pixels; it does not simulate resets or merge charge into reconstructed hits.
+Position-smearing sigma: 0.1 cm
+Missing-charge fraction: 0.1
+Fractional charge-noise sigma: 0.1
+Electron descendant-branch loss fraction: 0.1
+Random seed: 12345
+Validation-event fraction: 0.3
+Validation events: 300
+
+Detector objects:
+  Primary K+: only deposits from the parent_track_id == 0 K+ before its endpoint.
+  Electron shower: initiating electron plus every recursive descendant.
+  A secondary electron with an electron ancestor remains in that ancestor's shower.
+
+PCA definition:
+  G4 step midpoints are weighted by deposited energy.
+  Eigenvalues are ordered lambda_1 >= lambda_2 >= lambda_3.
+  R_T = (lambda_2 + lambda_3) / lambda_1.
+  Small R_T is track-like; large R_T is shower-like.
+
+Nominal primary K+ objects analyzed: 934
+Nominal electron showers analyzed: 46390
+
+Scenarios:
+  nominal_truth
+  qpix_xy_pixelized
+  missing_charge_10pct
+  charge_noise_10pct
+  position_smearing
+  electron_branch_loss_10pct
+  combined_detector_effects

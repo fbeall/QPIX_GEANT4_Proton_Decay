@@ -1,0 +1,33 @@
+PCA rejection working points
+============================
+
+Selection rule: accept a track-like candidate when R_T < threshold.
+Thresholds below are learned from training-event primary K+ quantiles.
+Performance is evaluated only on held-out validation events.
+
+Target training K+ efficiency: 90.0%
+  R_T threshold: 0.0018756926
+  log10(R_T) threshold: -2.72684
+  Validation K+ efficiency: 88.73%
+  Validation electron-shower rejection: 99.36%
+  Validation AUC: 0.995461
+
+Target training K+ efficiency: 95.0%
+  R_T threshold: 0.0023459852
+  log10(R_T) threshold: -2.62967
+  Validation K+ efficiency: 92%
+  Validation electron-shower rejection: 99.3%
+  Validation AUC: 0.995461
+
+Target training K+ efficiency: 99.0%
+  R_T threshold: 0.0057490244
+  log10(R_T) threshold: -2.24041
+  Validation K+ efficiency: 99.27%
+  Validation electron-shower rejection: 98.91%
+  Validation AUC: 0.995461
+
+Preliminary reference from 1-PC1 < 0.00242:
+  Equivalent R_T threshold: 0.0024258706
+  Validation K+ efficiency: 93.45%
+  Validation electron-shower rejection: 99.28%
+  This is a reference only, not a final detector-level cut.

@@ -1,0 +1,15 @@
+scenario,object_type,skipped_objects
+nominal_truth,primary_k_plus,66
+nominal_truth,electron_shower,133867
+qpix_xy_pixelized,primary_k_plus,66
+qpix_xy_pixelized,electron_shower,133867
+missing_charge_10pct,primary_k_plus,73
+missing_charge_10pct,electron_shower,138002
+charge_noise_10pct,primary_k_plus,66
+charge_noise_10pct,electron_shower,133867
+position_smearing,primary_k_plus,66
+position_smearing,electron_shower,133867
+electron_branch_loss_10pct,primary_k_plus,66
+electron_branch_loss_10pct,electron_shower,133881
+combined_detector_effects,primary_k_plus,75
+combined_detector_effects,electron_shower,138069
