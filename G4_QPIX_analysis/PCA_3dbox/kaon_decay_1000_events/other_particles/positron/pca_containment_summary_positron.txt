@@ -1,0 +1,18 @@
+Positron PCA containment summary
+================================
+
+Tracks analyzed: 3600
+PCA box energy-quantile target: 98%
+Box dimensionality: 3D (PC1-PC2-PC3)
+Mean outside energy: 16.9729%
+Median outside energy: 14.8613%
+Standard deviation: 11.632%
+Minimum: 1.36967%
+Maximum: 100%
+90th percentile: 28.9652%
+
+Method:
+  PCA uses positive-energy G4 step midpoints weighted by deposited energy.
+  The box is the central weighted interval along every axis in PC1-PC2-PC3.
+  Outside energy is summed when a deposit lies outside its interval on PC1, PC2, or PC3.
+  At least three nonzero-length G4 steps are required per track.

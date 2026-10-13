@@ -38,6 +38,11 @@ DEFAULT_INPUT_DIR = (
 # This is the requested output directory for the plots and summary files.
 DEFAULT_OUTPUT_DIR = SCRIPT_DIR / "PCA" / "kaon_decay_1000_events"
 
+# Keep 3D-box products separate from the established 2D-box results.  This
+# directory is selected automatically when --3d-box is supplied unless the
+# caller explicitly provides --output-dir.
+DEFAULT_3D_OUTPUT_DIR = SCRIPT_DIR / "PCA_3dbox" / "kaon_decay_1000_events"
+
 
 def event_number_from_path(path):
     """Read the integer event number from a name such as G4_E123.txt."""
@@ -324,8 +329,8 @@ def energy_weighted_pca(points, energies):
     return center, components, coordinates, eigenvalues, explained
 
 
-def analyze_primary_kaon_track(steps, containment_quantile):
-    """Run PCA and measure deposited energy outside the robust PC1-PC2 box."""
+def analyze_primary_kaon_track(steps, containment_quantile, box_3d=False):
+    """Run PCA and measure energy outside a robust 2D or 3D PCA box."""
     if not 0.0 < containment_quantile <= 1.0:
         raise ValueError("--containment-quantile must be in the interval (0, 1].")
 
@@ -347,13 +352,24 @@ def analyze_primary_kaon_track(steps, containment_quantile):
     pc2_low = weighted_quantile(coordinates[:, 1], energies, tail_fraction)
     pc2_high = weighted_quantile(coordinates[:, 1], energies, 1.0 - tail_fraction)
 
-    # Mark steps outside the PC1-PC2 rectangular region.
+    # In optional 3D mode, apply the identical energy-weighted quantile
+    # definition to PC3 so all three PCA dimensions are treated consistently.
+    pc3_low = weighted_quantile(coordinates[:, 2], energies, tail_fraction)
+    pc3_high = weighted_quantile(coordinates[:, 2], energies, 1.0 - tail_fraction)
+
+    # Start with the established PC1-PC2 rectangle.  In 2D mode this is an
+    # infinite prism along PC3; in 3D mode the following block also bounds PC3.
     inside_box = (
         (coordinates[:, 0] >= pc1_low)
         & (coordinates[:, 0] <= pc1_high)
         & (coordinates[:, 1] >= pc2_low)
         & (coordinates[:, 1] <= pc2_high)
     )
+    if box_3d:
+        inside_box &= (
+            (coordinates[:, 2] >= pc3_low)
+            & (coordinates[:, 2] <= pc3_high)
+        )
 
     # Sum energy inside and outside the PCA-defined box.
     total_energy = float(np.sum(energies))
@@ -379,7 +395,10 @@ def analyze_primary_kaon_track(steps, containment_quantile):
             "pc1_high": pc1_high,
             "pc2_low": pc2_low,
             "pc2_high": pc2_high,
+            "pc3_low": pc3_low,
+            "pc3_high": pc3_high,
         },
+        "box_3d": bool(box_3d),
         "total_energy_MeV": total_energy,
         "inside_energy_MeV": inside_energy,
         "outside_energy_MeV": outside_energy,
@@ -403,6 +422,39 @@ def pca_box_corners(center, components, box):
 
     # Convert PCA coordinates back into detector x/y/z coordinates.
     return center + corners_pc @ components
+
+
+def pca_box_segments(center, components, box, box_3d=False):
+    """Return detector-coordinate line segments for a 2D rectangle or 3D cuboid."""
+    if not box_3d:
+        # Preserve the original PC1-PC2 rectangle exactly in default 2D mode.
+        rectangle = pca_box_corners(center, components, box)
+        return np.stack([rectangle[:-1], rectangle[1:]], axis=1)
+
+    # Define all eight cuboid corners in PCA coordinates.  Each PC coordinate
+    # uses its own lower and upper deposited-energy-weighted quantile boundary.
+    corners_pc = np.array(
+        [
+            [pc1, pc2, pc3]
+            for pc3 in (box["pc3_low"], box["pc3_high"])
+            for pc2 in (box["pc2_low"], box["pc2_high"])
+            for pc1 in (box["pc1_low"], box["pc1_high"])
+        ],
+        dtype=float,
+    )
+    corners_xyz = center + corners_pc @ components
+
+    # Connect corners that differ in exactly one low/high coordinate, producing
+    # the twelve edges of the PCA-aligned three-dimensional rectangular box.
+    edge_indices = [
+        (0, 1), (0, 2), (0, 4),
+        (1, 3), (1, 5),
+        (2, 3), (2, 6),
+        (3, 7),
+        (4, 5), (4, 6),
+        (5, 7), (6, 7),
+    ]
+    return np.array([[corners_xyz[start], corners_xyz[end]] for start, end in edge_indices])
 
 
 def set_axes_equal(ax):
@@ -437,9 +489,12 @@ def save_event_display(event_id, track_id, result, particle, output_path, contai
     # Build the thin red truth path from the ordered G4 step midpoints.
     path_points = steps[["x_cm", "y_cm", "z_cm"]].to_numpy(dtype=float)
 
-    # Build the PCA rectangle in detector coordinates.
-    rectangle = pca_box_corners(result["center"], result["components"], result["box"])
-    rectangle_segments = np.stack([rectangle[:-1], rectangle[1:]], axis=1)
+    # Build either the original PC1-PC2 rectangle or all twelve edges of the
+    # optional finite PC1-PC2-PC3 cuboid in detector coordinates.
+    box_3d = result.get("box_3d", False)
+    box_segments = pca_box_segments(
+        result["center"], result["components"], result["box"], box_3d=box_3d
+    )
 
     fig = plt.figure(figsize=(9.5, 7.5))
     ax = fig.add_subplot(111, projection="3d")
@@ -479,10 +534,11 @@ def save_event_display(event_id, track_id, result, particle, output_path, contai
         label="Primary K+ G4 path",
     )
 
-    # Draw the PCA box outline in the PC1-PC2 plane.
-    collection = Line3DCollection(rectangle_segments, colors="black", linewidths=0.5)
+    # Draw a deliberately thin outline so deposits and the red path stay clear.
+    collection = Line3DCollection(box_segments, colors="black", linewidths=0.5)
     ax.add_collection3d(collection)
-    ax.plot([], [], [], color="black", linewidth=0.5, label="PCA PC1-PC2 box")
+    box_label = "PCA PC1-PC2-PC3 box" if box_3d else "PCA PC1-PC2 box"
+    ax.plot([], [], [], color="black", linewidth=0.5, label=box_label)
 
     # Mark the particle-table start and end points for orientation.
     ax.scatter(
@@ -543,14 +599,15 @@ def save_event_display(event_id, track_id, result, particle, output_path, contai
     plt.close(fig)
 
 
-def plot_outside_energy_histogram(summary, output_path):
+def plot_outside_energy_histogram(summary, output_path, box_3d=False):
     """Save the requested 1%-bin histogram of energy outside the PCA box."""
     values = summary["outside_percent"].dropna().to_numpy(dtype=float)
     bins = np.arange(0.0, 101.0, 1.0)
 
     fig, ax = plt.subplots(figsize=(9, 6.2))
     ax.hist(values, bins=bins, color="tab:blue", edgecolor="black", linewidth=0.45)
-    ax.set_xlabel("Percent energy outside the PCA PC1-PC2 box [%]")
+    dimensions = "PC1-PC2-PC3" if box_3d else "PC1-PC2"
+    ax.set_xlabel(f"Percent energy outside the PCA {dimensions} box [%]")
     ax.set_ylabel("Counts")
     ax.set_title("Primary K+ PCA containment")
     ax.set_xlim(0.0, 100.0)
@@ -648,9 +705,11 @@ def plot_diagnostic_scatters(summary, output_dir):
     plt.close(fig)
 
 
-def write_text_summary(summary, output_path, input_dir, containment_quantile):
+def write_text_summary(summary, output_path, input_dir, containment_quantile, box_3d=False):
     """Write a small plain-text summary of the PCA containment run."""
     outside = summary["outside_percent"].to_numpy(dtype=float)
+    dimensions = "PC1-PC2-PC3" if box_3d else "PC1-PC2"
+    axes = "PC1, PC2, or PC3" if box_3d else "PC1 or PC2"
     lines = [
         "Primary K+ PCA containment summary",
         "===================================",
@@ -659,7 +718,9 @@ def write_text_summary(summary, output_path, input_dir, containment_quantile):
         f"Tracks analyzed: {len(summary)}",
         f"PCA box energy-quantile target: {100.0 * containment_quantile:.3g}%",
         "",
-        "Energy outside PC1-PC2 box:",
+        f"Box dimensionality: {'3D' if box_3d else '2D'} ({dimensions})",
+        "",
+        f"Energy outside {dimensions} box:",
         f"  Mean: {np.mean(outside):.6g}%",
         f"  Median: {np.median(outside):.6g}%",
         f"  Standard deviation: {np.std(outside):.6g}%",
@@ -672,8 +733,8 @@ def write_text_summary(summary, output_path, input_dir, containment_quantile):
         "  G4 truth steps are matched by event number and ParticleID because track IDs restart each event.",
         "  PCA is run on G4 step midpoints in detector x/y/z coordinates.",
         "  Each midpoint is weighted by the G4 step deposited energy.",
-        "  The PC1-PC2 box is the central weighted quantile interval along PC1 and PC2.",
-        "  Energy outside the box is the sum of K+ step energy whose PC1 or PC2 coordinate lies outside that interval.",
+        f"  The {dimensions} box uses the central weighted quantile interval along each included axis.",
+        f"  Energy outside is summed when a K+ step lies outside the interval on {axes}.",
     ]
     output_path.write_text("\n".join(lines) + "\n")
 
@@ -740,7 +801,10 @@ def iter_primary_kaon_tracks(input_dir, max_tracks=None):
 def run_analysis(args):
     """Loop over events, analyze the primary K+, and save plots/tables."""
     input_dir = Path(args.input_dir).expanduser().resolve()
-    output_dir = Path(args.output_dir).expanduser().resolve()
+    # Select a separate default hierarchy for 3D products while still honoring
+    # an explicit --output-dir supplied by the caller.
+    default_output = DEFAULT_3D_OUTPUT_DIR if args.box_3d else DEFAULT_OUTPUT_DIR
+    output_dir = Path(args.output_dir or default_output).expanduser().resolve()
     event_display_dir = output_dir / "event_displays"
     high_outside_display_dir = output_dir / "highest_outside_energy_event_displays"
 
@@ -763,7 +827,9 @@ def run_analysis(args):
                 skipped_events.append((event_id, f"no G4 steps for primary K+ track {track_id}"))
                 continue
 
-            result = analyze_primary_kaon_track(kaon_steps, args.containment_quantile)
+            result = analyze_primary_kaon_track(
+                kaon_steps, args.containment_quantile, box_3d=args.box_3d
+            )
             decay_mode = classify_kaon_decay(particle)
 
             rows.append(
@@ -784,6 +850,9 @@ def run_analysis(args):
                     "pc1_high_cm": result["box"]["pc1_high"],
                     "pc2_low_cm": result["box"]["pc2_low"],
                     "pc2_high_cm": result["box"]["pc2_high"],
+                    "pc3_low_cm": result["box"]["pc3_low"],
+                    "pc3_high_cm": result["box"]["pc3_high"],
+                    "box_dimensions": 3 if args.box_3d else 2,
                     "particle_initial_energy_MeV": float(particle["particle_initial_energy"]),
                     "particle_final_kinetic_energy_MeV": float(particle["particle_final_kinetic_energy"]),
                     "particle_decay_flag": int(particle["particle_decay_flag"]),
@@ -854,13 +923,18 @@ def run_analysis(args):
             "\n".join(f"event {event_id}: {reason}" for event_id, reason in skipped_events) + "\n"
         )
 
-    plot_outside_energy_histogram(summary, output_dir / "outside_energy_percent_hist_1pct_bins.png")
+    plot_outside_energy_histogram(
+        summary,
+        output_dir / "outside_energy_percent_hist_1pct_bins.png",
+        box_3d=args.box_3d,
+    )
     plot_diagnostic_scatters(summary, output_dir)
     write_text_summary(
         summary=summary,
         output_path=output_dir / "pca_containment_summary.txt",
         input_dir=input_dir,
         containment_quantile=args.containment_quantile,
+        box_3d=args.box_3d,
     )
 
     print(f"Analyzed {len(summary)} primary K+ track(s).")
@@ -882,14 +956,20 @@ def build_parser():
     )
     parser.add_argument(
         "--output-dir",
-        default=DEFAULT_OUTPUT_DIR,
-        help="Directory where PCA plots and summaries will be saved.",
+        default=None,
+        help="Output directory; defaults to PCA/... for 2D or PCA_3dbox/... for --3d-box.",
     )
     parser.add_argument(
         "--containment-quantile",
         type=float,
         default=0.98,
-        help="Central deposited-energy quantile used for the PC1-PC2 box.",
+        help="Central deposited-energy quantile used along every included PCA axis.",
+    )
+    parser.add_argument(
+        "--3d-box",
+        dest="box_3d",
+        action="store_true",
+        help="Bound PC3 as well as PC1-PC2, draw a 3D cuboid, and use PCA_3dbox output.",
     )
     parser.add_argument(
         "--event-displays",

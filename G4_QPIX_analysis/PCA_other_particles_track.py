@@ -24,7 +24,7 @@ from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
 # Reuse the tested PCA mathematics from the primary-kaon analysis.  This keeps
 # the box definition and energy accounting identical in both studies.
-from PCA_kaon_track import analyze_primary_kaon_track, pca_box_corners, set_axes_equal
+from PCA_kaon_track import analyze_primary_kaon_track, pca_box_segments, set_axes_equal
 
 
 DEFAULT_INPUT_DIR = (
@@ -33,6 +33,7 @@ DEFAULT_INPUT_DIR = (
     / "proton_decay_argon_1k_events_RTD_2026-09-03_153336"
 )
 DEFAULT_EVENT_SET_DIR = SCRIPT_DIR / "PCA" / "kaon_decay_1000_events"
+DEFAULT_3D_EVENT_SET_DIR = SCRIPT_DIR / "PCA_3dbox" / "kaon_decay_1000_events"
 
 # The categories are intentionally separated by charge/sign.  Primary and
 # secondary K+ tracks share PDG 321 and are separated using parent_track_id.
@@ -241,8 +242,12 @@ def save_event_display(record, output_path, containment_quantile):
     steps = result["steps"].sort_values("ti", kind="mergesort")
     path_points = steps[["x_cm", "y_cm", "z_cm"]].to_numpy(dtype=float)
 
-    rectangle = pca_box_corners(result["center"], result["components"], result["box"])
-    rectangle_segments = np.stack([rectangle[:-1], rectangle[1:]], axis=1)
+    # Reuse the shared geometry builder so this display uses precisely the same
+    # 2D rectangle or 3D cuboid definition as the primary-kaon script.
+    box_3d = result.get("box_3d", False)
+    box_segments = pca_box_segments(
+        result["center"], result["components"], result["box"], box_3d=box_3d
+    )
 
     fig = plt.figure(figsize=(9.5, 7.5))
     ax = fig.add_subplot(111, projection="3d")
@@ -295,9 +300,10 @@ def save_event_display(record, output_path, containment_quantile):
             linewidth=1.0,
             label=f"{label} G4 path",
         )
-    box_lines = Line3DCollection(rectangle_segments, colors="black", linewidths=0.5)
+    box_lines = Line3DCollection(box_segments, colors="black", linewidths=0.5)
     ax.add_collection3d(box_lines)
-    ax.plot([], [], [], color="black", linewidth=0.5, label="PCA PC1-PC2 box")
+    box_label = "PCA PC1-PC2-PC3 box" if box_3d else "PCA PC1-PC2 box"
+    ax.plot([], [], [], color="black", linewidth=0.5, label=box_label)
     ax.scatter(
         [particle["particle_initial_x"]],
         [particle["particle_initial_y"]],
@@ -355,7 +361,7 @@ def save_event_display(record, output_path, containment_quantile):
     plt.close(fig)
 
 
-def plot_category(summary, category, output_dir):
+def plot_category(summary, category, output_dir, box_3d=False):
     """Save the same four containment diagnostics for one particle category."""
     label = CATEGORY_INFO[category]["label"]
     values = summary["outside_percent"].to_numpy(dtype=float)
@@ -363,7 +369,8 @@ def plot_category(summary, category, output_dir):
 
     fig, ax = plt.subplots(figsize=(9, 6.2))
     ax.hist(values, bins=bins, color="tab:blue", edgecolor="black", linewidth=0.45)
-    ax.set(xlabel="Percent energy outside the PCA PC1-PC2 box [%]", ylabel="Counts")
+    dimensions = "PC1-PC2-PC3" if box_3d else "PC1-PC2"
+    ax.set(xlabel=f"Percent energy outside the PCA {dimensions} box [%]", ylabel="Counts")
     ax.set_title(f"{label} PCA containment")
     ax.set_xlim(0.0, 100.0)
     ax.grid(True, axis="y", alpha=0.25)
@@ -427,16 +434,19 @@ def plot_category(summary, category, output_dir):
     plt.close(fig)
 
 
-def write_category_summary(summary, category, output_path, containment_quantile):
+def write_category_summary(summary, category, output_path, containment_quantile, box_3d=False):
     """Write human-readable statistics and method notes for one category."""
     label = CATEGORY_INFO[category]["label"]
     outside = summary["outside_percent"].to_numpy(dtype=float)
+    dimensions = "PC1-PC2-PC3" if box_3d else "PC1-PC2"
+    axes = "PC1, PC2, or PC3" if box_3d else "PC1 or PC2"
     lines = [
         f"{label} PCA containment summary",
         "=" * (len(label) + 24),
         "",
         f"Tracks analyzed: {len(summary)}",
         f"PCA box energy-quantile target: {100.0 * containment_quantile:.3g}%",
+        f"Box dimensionality: {'3D' if box_3d else '2D'} ({dimensions})",
         f"Mean outside energy: {np.mean(outside):.6g}%",
         f"Median outside energy: {np.median(outside):.6g}%",
         f"Standard deviation: {np.std(outside):.6g}%",
@@ -446,14 +456,14 @@ def write_category_summary(summary, category, output_path, containment_quantile)
         "",
         "Method:",
         "  PCA uses positive-energy G4 step midpoints weighted by deposited energy.",
-        "  The box is the central weighted interval along PC1 and PC2.",
-        "  Outside energy is summed where either PC1 or PC2 lies outside its interval.",
+        f"  The box is the central weighted interval along every axis in {dimensions}.",
+        f"  Outside energy is summed when a deposit lies outside its interval on {axes}.",
         "  At least three nonzero-length G4 steps are required per track.",
     ]
     output_path.write_text("\n".join(lines) + "\n")
 
 
-def plot_combined(summary, output_dir):
+def plot_combined(summary, output_dir, box_3d=False):
     """Save comparison plots containing primary K+ and every other category."""
     categories = [category for category in CATEGORY_INFO if category in set(summary["particle_type"])]
     colors = plt.get_cmap("tab10")(np.linspace(0.0, 1.0, len(categories)))
@@ -463,7 +473,8 @@ def plot_combined(summary, output_dir):
     for color, category in zip(colors, categories):
         data = summary.loc[summary["particle_type"].eq(category), "outside_percent"]
         ax.hist(data, bins=bins, histtype="step", linewidth=1.5, color=color, label=f"{CATEGORY_INFO[category]['label']} (n={len(data)})")
-    ax.set(xlabel="Percent energy outside the PCA PC1-PC2 box [%]", ylabel="Counts")
+    dimensions = "PC1-PC2-PC3" if box_3d else "PC1-PC2"
+    ax.set(xlabel=f"Percent energy outside the PCA {dimensions} box [%]", ylabel="Counts")
     ax.set_title("PCA containment by particle type")
     ax.set_xlim(0.0, 100.0)
     ax.set_yscale("symlog", linthresh=1.0)
@@ -530,7 +541,7 @@ def plot_combined(summary, output_dir):
     plt.close(fig)
 
 
-def analyze_tracks(particles, g4_steps, containment_quantile, displays_per_particle):
+def analyze_tracks(particles, g4_steps, containment_quantile, displays_per_particle, box_3d=False):
     """Analyze every eligible track and retain only records needed for displays."""
     particle_index = particle_lookup_table(particles)
     rows = []
@@ -564,7 +575,7 @@ def analyze_tracks(particles, g4_steps, containment_quantile, displays_per_parti
             continue
 
         try:
-            result = analyze_primary_kaon_track(steps, containment_quantile)
+            result = analyze_primary_kaon_track(steps, containment_quantile, box_3d=box_3d)
         except Exception as exc:
             skipped[str(exc)] += 1
             continue
@@ -591,6 +602,9 @@ def analyze_tracks(particles, g4_steps, containment_quantile, displays_per_parti
             "pc1_high_cm": result["box"]["pc1_high"],
             "pc2_low_cm": result["box"]["pc2_low"],
             "pc2_high_cm": result["box"]["pc2_high"],
+            "pc3_low_cm": result["box"]["pc3_low"],
+            "pc3_high_cm": result["box"]["pc3_high"],
+            "box_dimensions": 3 if box_3d else 2,
             "particle_initial_energy_MeV": float(particle["particle_initial_energy"]),
             "particle_final_kinetic_energy_MeV": float(particle["particle_final_kinetic_energy"]),
             "particle_decay_flag": int(particle["particle_decay_flag"]),
@@ -650,7 +664,7 @@ def analyze_tracks(particles, g4_steps, containment_quantile, displays_per_parti
             particle = particle.iloc[0]
 
         try:
-            result = analyze_primary_kaon_track(steps, containment_quantile)
+            result = analyze_primary_kaon_track(steps, containment_quantile, box_3d=box_3d)
         except Exception as exc:
             skipped[f"electron shower: {exc}"] += 1
             continue
@@ -682,6 +696,9 @@ def analyze_tracks(particles, g4_steps, containment_quantile, displays_per_parti
                 "pc1_high_cm": result["box"]["pc1_high"],
                 "pc2_low_cm": result["box"]["pc2_low"],
                 "pc2_high_cm": result["box"]["pc2_high"],
+                "pc3_low_cm": result["box"]["pc3_low"],
+                "pc3_high_cm": result["box"]["pc3_high"],
+                "box_dimensions": 3 if box_3d else 2,
                 "particle_initial_energy_MeV": float(particle["particle_initial_energy"]),
                 "particle_final_kinetic_energy_MeV": float(
                     particle["particle_final_kinetic_energy"]
@@ -742,8 +759,9 @@ def write_outputs(summary, skipped, first_records, highest_heaps, inventory, arg
             category,
             category_dir / f"pca_containment_summary_{category}.txt",
             args.containment_quantile,
+            box_3d=args.box_3d,
         )
-        plot_category(category_summary, category, category_dir)
+        plot_category(category_summary, category, category_dir, box_3d=args.box_3d)
 
         first_dir = display_root / category / "first_events"
         highest_dir = display_root / category / "highest_outside_energy"
@@ -775,7 +793,7 @@ def write_outputs(summary, skipped, first_records, highest_heaps, inventory, arg
     )
 
     summary.to_csv(combined_root / "pca_track_summary_combined.csv", index=False)
-    plot_combined(summary, combined_root)
+    plot_combined(summary, combined_root, box_3d=args.box_3d)
     counts = summary.groupby(["particle_type", "particle_label"]).size()
     combined_lines = [
         "Combined particle PCA containment summary",
@@ -783,6 +801,7 @@ def write_outputs(summary, skipped, first_records, highest_heaps, inventory, arg
         "",
         f"Total tracks analyzed: {len(summary)}",
         f"PCA box energy-quantile target: {100.0 * args.containment_quantile:.3g}%",
+        f"Box dimensionality: {'3D (PC1-PC2-PC3)' if args.box_3d else '2D (PC1-PC2)'}",
         "",
         "Analyzed tracks by category:",
     ]
@@ -803,12 +822,13 @@ def write_outputs(summary, skipped, first_records, highest_heaps, inventory, arg
         kaon_electron_shower_root / "pca_track_summary_kaon_electron_showers.csv",
         index=False,
     )
-    plot_combined(kaon_electron_summary, kaon_electron_shower_root)
+    plot_combined(kaon_electron_summary, kaon_electron_shower_root, box_3d=args.box_3d)
     focused_lines = [
         "Primary K+ and electron-shower PCA summary",
         "==========================================",
         "",
         f"PCA box energy-quantile target: {100.0 * args.containment_quantile:.3g}%",
+        f"Box dimensionality: {'3D (PC1-PC2-PC3)' if args.box_3d else '2D (PC1-PC2)'}",
         "",
     ]
     for category in ["primary_k_plus", "electron_showers"]:
@@ -843,6 +863,7 @@ def run(args):
         g4_steps,
         args.containment_quantile,
         args.event_displays_per_particle,
+        box_3d=args.box_3d,
     )
     if summary.empty:
         raise RuntimeError("No tracks produced a valid PCA result.")
@@ -860,9 +881,19 @@ def build_parser():
     """Define command-line controls for input, output, PCA box, and displays."""
     parser = argparse.ArgumentParser(description="PCA containment study for charged detector particles.")
     parser.add_argument("--input-dir", default=DEFAULT_INPUT_DIR)
-    parser.add_argument("--output-event-set-dir", default=DEFAULT_EVENT_SET_DIR)
+    parser.add_argument(
+        "--output-event-set-dir",
+        default=None,
+        help="Output event-set directory; selected automatically for 2D or --3d-box mode.",
+    )
     parser.add_argument("--containment-quantile", type=float, default=0.98)
     parser.add_argument("--event-displays-per-particle", type=int, default=5)
+    parser.add_argument(
+        "--3d-box",
+        dest="box_3d",
+        action="store_true",
+        help="Bound PC3, draw a PCA cuboid, and use the PCA_3dbox output hierarchy.",
+    )
     return parser
 
 
@@ -873,6 +904,11 @@ def main():
         raise ValueError("--containment-quantile must be in (0, 1].")
     if args.event_displays_per_particle < 0:
         raise ValueError("--event-displays-per-particle must be nonnegative.")
+    # Resolve the mode-specific default only after parsing the --3d-box flag.
+    if args.output_event_set_dir is None:
+        args.output_event_set_dir = (
+            DEFAULT_3D_EVENT_SET_DIR if args.box_3d else DEFAULT_EVENT_SET_DIR
+        )
     run(args)
 
 
