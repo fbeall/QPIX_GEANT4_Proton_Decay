@@ -75,3 +75,6 @@ Testing/
 qpixrtd_output/
 
 G4_QPIX_analysis/atmospheric_nu/**/*.root
+
+# ignore large csv summary files
+G4_QPIX_analysis/**/summaries/
